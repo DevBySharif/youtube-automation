@@ -1,12 +1,13 @@
 """
 controls_panel.py
-Professional Voice Engine panel featuring:
-  • Provider Selector Architecture (Kokoro + Future XTTS / ElevenLabs / Fish Speech)
-  • 12 AI Narration Modes (Documentary, YouTube Explainer, Finance, Horror, Motivation, etc.)
-  • Dedicated Voice Card with Library & Voice Cloning Studio shortcuts
-  • Humanization Controls (Natural Pauses, Micro Pauses, Sentence Breathing, Emphasis)
-  • Advanced Parameters (Seed, Audio Output Formats, Normalization LUFS)
-  • Async Kokoro Voice Preview Engine (Kokoro TTS Only, No Whisper, No ResourceManager re-verification)
+Professional Voice Engine controls panel featuring:
+  • Provider Selector Architecture
+  • 15 AI Narration Profiles (Documentary, YouTube Explainer, Storytelling, Motivation, Finance, History, etc.)
+  • Collapsible Advanced Voice Settings Panel (Stability, Expressiveness, Clarity, Energy, Pitch, Gain, Pauses)
+  • Quality Profile Selector (Draft, Standard, High, Studio, Lossless)
+  • Generation History Studio shortcut
+  • Voice Library & Voice Cloning Studio shortcuts
+  • Async Kokoro Voice Preview with Caching
 """
 
 import os
@@ -17,17 +18,23 @@ from typing import Optional, Dict, Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QComboBox, QSlider, QPushButton, QProgressBar, QSpacerItem, QSizePolicy, QFrame,
-    QTabWidget, QSpinBox, QDoubleSpinBox,
+    QTabWidget,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QThread, QUrl
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from config import VOICES, WHISPER_MODELS, DEFAULT_VOICE, DEFAULT_SPEED, DEFAULT_WHISPER_MODEL, TEMP_DIR
 from voice_engine.registry import VoiceProviderRegistry
-from voice_engine.narration_modes import NarrationMode, NARRATION_MODE_LABELS, NARRATION_MODE_PROFILES, HumanizationSettings
-from voice_engine.post_processing import PostProcessingConfig
+from voice_engine.capabilities import QUALITY_PROFILES, QualityProfile
+from voice_engine.narration_modes import (
+    NarrationMode, NARRATION_MODE_LABELS, NARRATION_MODE_PROFILES,
+    HumanizationSettings, AdvancedVoiceSettings
+)
+from voice_engine.favorites import VoiceFavoritesManager
 from ui.voice_cloning_dialog import VoiceCloningDialog
 from ui.voice_library_dialog import VoiceLibraryDialog
+from ui.advanced_voice_panel import AdvancedVoicePanel
+from ui.history_dialog import HistoryDialog
 
 log = logging.getLogger(__name__)
 
@@ -35,11 +42,6 @@ log = logging.getLogger(__name__)
 # ── Asynchronous Voice Preview Worker ──────────────────────────────────────────
 
 class VoicePreviewWorker(QThread):
-    """
-    Asynchronous worker that generates a short preview audio using ONLY Kokoro TTS.
-    Does NOT run Whisper alignment, does NOT verify ResourceManager again,
-    and does NOT run the full pipeline.
-    """
     finished = Signal(bool, str)
 
     def __init__(self, voice: str, speed: float, parent=None):
@@ -54,6 +56,11 @@ class VoicePreviewWorker(QThread):
         tmp_path = os.path.join(out_dir, f"preview_{self.voice}.wav")
 
         try:
+            # Check preview cache first for instant playback
+            if os.path.exists(tmp_path) and os.path.getsize(tmp_path) > 0:
+                self.finished.emit(True, tmp_path)
+                return
+
             provider = VoiceProviderRegistry.get_instance().get_provider()
             res_path = provider.generate_preview(
                 voice_id=self.voice,
@@ -64,7 +71,7 @@ class VoicePreviewWorker(QThread):
             if res_path and os.path.exists(res_path):
                 self.finished.emit(True, res_path)
             else:
-                self.finished.emit(False, "Preview audio file generation failed.")
+                self.finished.emit(False, "Preview audio generation failed.")
         except Exception as exc:
             log.warning("Voice preview generation failed: %s", exc)
             self.finished.emit(False, str(exc))
@@ -72,8 +79,8 @@ class VoicePreviewWorker(QThread):
 
 class ControlsPanel(QWidget):
     """
-    Professional Voice Engine panel with extensible Provider Architecture,
-    AI Narration Modes, Voice Card, Voice Cloning, and Advanced Controls.
+    Professional Voice Engine panel with Provider Matrix, 15 Narration Profiles,
+    Collapsible Advanced Voice Settings, Quality Profiles, and History Studio.
     """
 
     generate_requested = Signal(str, float, str)
@@ -103,45 +110,41 @@ class ControlsPanel(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 16, 16, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(10, 14, 14, 14)
+        layout.setSpacing(12)
 
-        # Tabbed Engine Control Panel
+        # Tabbed Control Studio
         self.control_tabs = QTabWidget()
 
-        # Tab 1: Core Voice & Speech
+        # ── TAB 1: VOICE & SPEECH STUDIO ──────────────────────────────────────
         self.tab_core = QWidget()
         core_layout = QVBoxLayout(self.tab_core)
-        core_layout.setContentsMargins(8, 12, 8, 8)
-        core_layout.setSpacing(12)
+        core_layout.setContentsMargins(6, 10, 6, 6)
+        core_layout.setSpacing(10)
 
-        # ── 1. PROVIDER & NARRATION MODE ROW ─────────────────────────────────
+        # Provider & Profile Card
         provider_card = QFrame()
         provider_card.setObjectName("card")
         p_layout = QVBoxLayout(provider_card)
-        p_layout.setContentsMargins(14, 12, 14, 12)
-        p_layout.setSpacing(10)
+        p_layout.setContentsMargins(12, 10, 12, 10)
+        p_layout.setSpacing(8)
 
         # Provider Selector
         p_row = QHBoxLayout()
-        p_label = QLabel("TTS PROVIDER")
+        p_label = QLabel("PROVIDER")
         p_label.setObjectName("sectionLabel")
         p_row.addWidget(p_label)
 
         self.provider_combo = QComboBox()
         for prov in VoiceProviderRegistry.get_instance().list_providers():
-            label = prov["name"] if prov["available"] else f"{prov['name']} (Coming Soon)"
+            label = prov["name"] if prov["available"] else f"{prov['name']} (Plug-in)"
             self.provider_combo.addItem(label, userData=prov["id"])
-            if not prov["available"]:
-                # Disable future provider stubs visually in combo
-                index = self.provider_combo.count() - 1
-                self.provider_combo.setItemData(index, 0, Qt.ItemDataRole.UserRole - 1)
         p_row.addWidget(self.provider_combo, stretch=1)
         p_layout.addLayout(p_row)
 
-        # AI Narration Mode Selector
+        # 15 AI Narration Profiles
         n_row = QHBoxLayout()
-        n_label = QLabel("🎬 NARRATION MODE")
+        n_label = QLabel("PROFILE")
         n_label.setObjectName("sectionLabel")
         n_row.addWidget(n_label)
 
@@ -154,44 +157,50 @@ class ControlsPanel(QWidget):
 
         core_layout.addWidget(provider_card)
 
-        # ── 2. VOICE CARD ─────────────────────────────────────────────────────
+        # Voice Card
         voice_card = QFrame()
         voice_card.setObjectName("card")
         card_layout = QVBoxLayout(voice_card)
-        card_layout.setContentsMargins(14, 14, 14, 14)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(12, 12, 12, 12)
+        card_layout.setSpacing(8)
 
-        # Title & Action Shortcuts Row
+        # Header Row & Shortcuts
         card_header = QHBoxLayout()
         card_title = QLabel("🎙  VOICE & SPEECH")
         card_title.setObjectName("sectionLabel")
         card_header.addWidget(card_title)
         card_header.addStretch()
 
-        self.library_btn = QPushButton("📚 Library…")
-        self.library_btn.setStyleSheet("padding: 4px 8px; font-size: 8.5pt;")
+        self.fav_btn = QPushButton("⭐")
+        self.fav_btn.setFixedWidth(28)
+        self.fav_btn.setToolTip("Favorite Voice")
+        self.fav_btn.clicked.connect(self._toggle_favorite)
+        card_header.addWidget(self.fav_btn)
+
+        self.library_btn = QPushButton("📚 Library")
+        self.library_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
         self.library_btn.clicked.connect(self._open_voice_library)
         card_header.addWidget(self.library_btn)
 
-        self.clone_btn = QPushButton("🎙 Clone…")
-        self.clone_btn.setStyleSheet("padding: 4px 8px; font-size: 8.5pt;")
+        self.clone_btn = QPushButton("🎙 Clone")
+        self.clone_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
         self.clone_btn.clicked.connect(self._open_voice_cloning)
         card_header.addWidget(self.clone_btn)
         card_layout.addLayout(card_header)
 
-        # Voice Selector Dropdown
+        # Voice Dropdown
         self.voice_combo = QComboBox()
         for voice_id, voice_label in VOICES:
             self.voice_combo.addItem(voice_label, userData=voice_id)
         card_layout.addWidget(self.voice_combo)
 
-        # Voice Metadata Info Row
+        # Metadata Label
         meta_row = QHBoxLayout()
         self.meta_lang_label = QLabel("Language: English (US)")
         self.meta_lang_label.setObjectName("subTextLabel")
         meta_row.addWidget(self.meta_lang_label)
         meta_row.addStretch()
-        self.meta_gender_label = QLabel("Female • Warm")
+        self.meta_gender_label = QLabel("Female • Natural ★★★★★")
         self.meta_gender_label.setObjectName("subTextLabel")
         meta_row.addWidget(self.meta_gender_label)
         card_layout.addLayout(meta_row)
@@ -199,23 +208,23 @@ class ControlsPanel(QWidget):
         # Speed Header & Slider
         speed_header = QHBoxLayout()
         speed_title = QLabel("Speed")
-        speed_title.setStyleSheet("font-size: 9pt; font-weight: 600; color: #F5F5F5;")
+        speed_title.setStyleSheet("font-size: 8.5pt; font-weight: 600; color: #F5F5F5;")
         speed_header.addWidget(speed_title)
         self.speed_label = QLabel(f"{DEFAULT_SPEED:.1f}×")
         self.speed_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.speed_label.setStyleSheet("color: #9EFF00; font-weight: 700; font-size: 9.5pt;")
+        self.speed_label.setStyleSheet("color: #9EFF00; font-weight: 700; font-size: 9pt;")
         speed_header.addWidget(self.speed_label)
         card_layout.addLayout(speed_header)
 
         speed_row = QHBoxLayout()
-        speed_row.addWidget(QLabel("0.8×"))
+        speed_row.addWidget(QLabel("0.5×"))
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
-        self.speed_slider.setMinimum(8)
-        self.speed_slider.setMaximum(12)
+        self.speed_slider.setMinimum(5)
+        self.speed_slider.setMaximum(20)
         self.speed_slider.setValue(10)
         self.speed_slider.setTickInterval(1)
         speed_row.addWidget(self.speed_slider, stretch=1)
-        speed_row.addWidget(QLabel("1.2×"))
+        speed_row.addWidget(QLabel("2.0×"))
         card_layout.addLayout(speed_row)
 
         # Preview Button
@@ -227,12 +236,16 @@ class ControlsPanel(QWidget):
 
         core_layout.addWidget(voice_card)
 
-        # ── 3. WHISPER ALIGNMENT MODEL ────────────────────────────────────────
+        # Collapsible Advanced Voice Settings Panel
+        self.adv_panel = AdvancedVoicePanel()
+        core_layout.addWidget(self.adv_panel)
+
+        # Whisper Alignment Card
         model_card = QFrame()
         model_card.setObjectName("card")
         m_layout = QVBoxLayout(model_card)
-        m_layout.setContentsMargins(14, 10, 14, 10)
-        m_layout.setSpacing(8)
+        m_layout.setContentsMargins(12, 8, 12, 8)
+        m_layout.setSpacing(6)
 
         m_title = QLabel("⚡  WHISPER ALIGNMENT MODEL")
         m_title.setObjectName("sectionLabel")
@@ -245,55 +258,65 @@ class ControlsPanel(QWidget):
         m_layout.addWidget(self.model_combo)
 
         core_layout.addWidget(model_card)
-        self.control_tabs.addTab(self.tab_core, "Voice & Speech")
+        self.control_tabs.addTab(self.tab_core, "Voice Studio")
 
-        # Tab 2: Humanization & Audio FX
-        self.tab_human = QWidget()
-        h_layout = QVBoxLayout(self.tab_human)
-        h_layout.setContentsMargins(12, 12, 12, 12)
-        h_layout.setSpacing(12)
+        # ── TAB 2: QUALITY & POST-PROCESSING ──────────────────────────────────
+        self.tab_fx = QWidget()
+        fx_layout = QVBoxLayout(self.tab_fx)
+        fx_layout.setContentsMargins(8, 10, 8, 8)
+        fx_layout.setSpacing(10)
 
-        h_card = QFrame()
-        h_card.setObjectName("card")
-        hc_layout = QVBoxLayout(h_card)
-        hc_layout.setContentsMargins(14, 14, 14, 14)
-        hc_layout.setSpacing(10)
+        q_card = QFrame()
+        q_card.setObjectName("card")
+        qc_layout = QVBoxLayout(q_card)
+        qc_layout.setContentsMargins(12, 12, 12, 12)
+        qc_layout.setSpacing(8)
 
-        hc_title = QLabel("✨  HUMANIZATION CONTROLS")
-        hc_title.setObjectName("sectionLabel")
-        hc_layout.addWidget(hc_title)
+        qc_title = QLabel("🎚  VOICE QUALITY PROFILE")
+        qc_title.setObjectName("sectionLabel")
+        qc_layout.addWidget(qc_title)
+
+        self.quality_combo = QComboBox()
+        for qp in QualityProfile:
+            prof = QUALITY_PROFILES[qp]
+            self.quality_combo.addItem(f"{prof.name} — {prof.description}", userData=qp.value)
+        self.quality_combo.setCurrentIndex(3)  # Studio 48 kHz / -14 LUFS default
+        qc_layout.addWidget(self.quality_combo)
+
+        # Audio FX Filters
+        fx_title = QLabel("✨  HUMANIZATION & AUDIO FX")
+        fx_title.setObjectName("sectionLabel")
+        qc_layout.addWidget(fx_title)
 
         self.chk_natural_pauses = QCheckBox("Natural Sentence Pauses")
         self.chk_natural_pauses.setChecked(True)
-        hc_layout.addWidget(self.chk_natural_pauses)
+        qc_layout.addWidget(self.chk_natural_pauses)
 
         self.chk_micro_pauses = QCheckBox("Random Micro Pauses")
         self.chk_micro_pauses.setChecked(True)
-        hc_layout.addWidget(self.chk_micro_pauses)
+        qc_layout.addWidget(self.chk_micro_pauses)
 
         self.chk_breathing = QCheckBox("Sentence Breathing Effects")
         self.chk_breathing.setChecked(True)
-        hc_layout.addWidget(self.chk_breathing)
-
-        # Output Audio Format & Normalization
-        fmt_title = QLabel("🎚  OUTPUT & POST-PROCESSING")
-        fmt_title.setObjectName("sectionLabel")
-        hc_layout.addWidget(fmt_title)
-
-        fmt_row = QHBoxLayout()
-        fmt_row.addWidget(QLabel("Format:"))
-        self.fmt_combo = QComboBox()
-        self.fmt_combo.addItems(["WAV (Uncompressed)", "MP3 (320kbps)", "FLAC (Lossless)"])
-        fmt_row.addWidget(self.fmt_combo, stretch=1)
-        hc_layout.addLayout(fmt_row)
+        qc_layout.addWidget(self.chk_breathing)
 
         self.chk_lufs = QCheckBox("Loudness Normalization (-14 LUFS YouTube)")
         self.chk_lufs.setChecked(True)
-        hc_layout.addWidget(self.chk_lufs)
+        qc_layout.addWidget(self.chk_lufs)
 
-        h_layout.addWidget(h_card)
-        h_layout.addStretch()
-        self.control_tabs.addTab(self.tab_human, "Humanization & FX")
+        self.chk_limiter = QCheckBox("Brickwall Limiter (-1.0 dB)")
+        self.chk_limiter.setChecked(True)
+        qc_layout.addWidget(self.chk_limiter)
+
+        fx_layout.addWidget(q_card)
+
+        # History Studio Button
+        self.history_btn = QPushButton("📜  Open Generation History Studio…")
+        self.history_btn.clicked.connect(self._open_history_studio)
+        fx_layout.addWidget(self.history_btn)
+
+        fx_layout.addStretch()
+        self.control_tabs.addTab(self.tab_fx, "Quality & History")
 
         layout.addWidget(self.control_tabs)
 
@@ -341,18 +364,28 @@ class ControlsPanel(QWidget):
 
     def _update_voice_metadata(self) -> None:
         voice_id = self.voice_combo.currentData() or "af_bella"
+        VoiceFavoritesManager.get_instance().add_recent(voice_id)
+
         if voice_id.startswith("bf_") or voice_id.startswith("bm_"):
             lang_str = "Language: English (UK)"
         else:
             lang_str = "Language: English (US)"
 
         if voice_id.startswith("af_") or voice_id.startswith("bf_"):
-            gender_str = "Female • Natural"
+            gender_str = "Female • Natural ★★★★★"
         else:
-            gender_str = "Male • Natural"
+            gender_str = "Male • Natural ★★★★★"
 
         self.meta_lang_label.setText(lang_str)
         self.meta_gender_label.setText(gender_str)
+
+        is_fav = VoiceFavoritesManager.get_instance().is_favorite(voice_id)
+        self.fav_btn.setText("⭐" if is_fav else "☆")
+
+    def _toggle_favorite(self) -> None:
+        voice_id = self.get_voice()
+        is_fav = VoiceFavoritesManager.get_instance().toggle_favorite(voice_id)
+        self.fav_btn.setText("⭐" if is_fav else "☆")
 
     def _on_narration_mode_changed(self) -> None:
         mode_val = self.narration_combo.currentData()
@@ -362,6 +395,7 @@ class ControlsPanel(QWidget):
             if "speed" in profile:
                 spd_val = round(profile["speed"] * 10)
                 self.speed_slider.setValue(spd_val)
+            self.adv_panel.apply_profile_dict(profile)
         except ValueError:
             pass
 
@@ -384,6 +418,10 @@ class ControlsPanel(QWidget):
 
     def _open_voice_cloning(self) -> None:
         dlg = VoiceCloningDialog(self)
+        dlg.exec()
+
+    def _open_history_studio(self) -> None:
+        dlg = HistoryDialog(self)
         dlg.exec()
 
     # ── Voice Preview Workflow ────────────────────────────────────────────────
@@ -413,12 +451,6 @@ class ControlsPanel(QWidget):
     def _on_preview_state_changed(self, state: QMediaPlayer.PlaybackState) -> None:
         if state == QMediaPlayer.PlaybackState.StoppedState:
             self._reset_preview_button()
-            if self._current_preview_wav and os.path.exists(self._current_preview_wav):
-                try:
-                    os.remove(self._current_preview_wav)
-                except OSError:
-                    pass
-                self._current_preview_wav = ""
 
     def _reset_preview_button(self) -> None:
         self.preview_btn.setEnabled(True)

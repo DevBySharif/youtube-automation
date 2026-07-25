@@ -3,7 +3,7 @@ __init__.py
 Voice Engine package init.
 """
 
-from voice_engine.capabilities import ProviderCapabilities, VoiceMetadata
+from voice_engine.capabilities import ProviderCapabilities, VoiceMetadata, QualityProfile, QUALITY_PROFILES
 from voice_engine.base_provider import BaseVoiceProvider
 from voice_engine.kokoro_provider import KokoroVoiceProvider
 from voice_engine.registry import VoiceProviderRegistry
@@ -14,6 +14,8 @@ from voice_engine.metadata import WordMetadata, NarrationMetadataExport
 __all__ = [
     "ProviderCapabilities",
     "VoiceMetadata",
+    "QualityProfile",
+    "QUALITY_PROFILES",
     "BaseVoiceProvider",
     "KokoroVoiceProvider",
     "VoiceProviderRegistry",

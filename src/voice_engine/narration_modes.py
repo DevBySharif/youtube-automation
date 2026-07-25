@@ -1,20 +1,23 @@
 """
 narration_modes.py
-AI Narration Modes and Humanization Settings Engine for YouTube Automation.
+15 AI Narration Profiles and Humanization Engine for Professional YouTube & Content Automation.
 
-Supported Modes:
-  • 📖 Documentary
-  • 🎙 YouTube Explainer
-  • 💰 Finance
-  • 🧠 Psychology
-  • 😱 Horror
-  • ❤️ Emotional Story
-  • 🚀 Motivation
-  • 📰 News
-  • 🎮 Gaming
-  • 📚 Educational
-  • 🎬 Cinematic
-  • 😂 Funny
+Supported Profiles:
+  1. 📖 Documentary
+  2. 🎙 YouTube Explainer
+  3. 📚 Storytelling
+  4. 🚀 Motivation
+  5. 💰 Finance
+  6. 🏛 History
+  7. 🎓 Educational
+  8. 🎧 Podcast
+  9. 📖 Audiobook
+ 10. 📰 News
+ 11. 🧘 Meditation
+ 12. 😱 Horror
+ 13. 🎈 Kids
+ 14. 😂 Comedy
+ 15. 🎬 Cinematic Trailer
 """
 
 from enum import Enum
@@ -25,32 +28,54 @@ from typing import Dict, Any
 class NarrationMode(str, Enum):
     DOCUMENTARY = "documentary"
     YOUTUBE_EXPLAINER = "youtube_explainer"
-    FINANCE = "finance"
-    PSYCHOLOGY = "psychology"
-    HORROR = "horror"
-    EMOTIONAL_STORY = "emotional_story"
+    STORYTELLING = "storytelling"
     MOTIVATION = "motivation"
-    NEWS = "news"
-    GAMING = "gaming"
+    FINANCE = "finance"
+    HISTORY = "history"
     EDUCATIONAL = "educational"
-    CINEMATIC = "cinematic"
-    FUNNY = "funny"
+    PODCAST = "podcast"
+    AUDIOBOOK = "audiobook"
+    NEWS = "news"
+    MEDITATION = "meditation"
+    HORROR = "horror"
+    KIDS = "kids"
+    COMEDY = "comedy"
+    CINEMATIC_TRAILER = "cinematic_trailer"
 
 
 NARRATION_MODE_LABELS: Dict[NarrationMode, str] = {
     NarrationMode.DOCUMENTARY: "📖 Documentary",
     NarrationMode.YOUTUBE_EXPLAINER: "🎙 YouTube Explainer",
-    NarrationMode.FINANCE: "💰 Finance",
-    NarrationMode.PSYCHOLOGY: "🧠 Psychology",
-    NarrationMode.HORROR: "😱 Horror",
-    NarrationMode.EMOTIONAL_STORY: "❤️ Emotional Story",
+    NarrationMode.STORYTELLING: "📚 Storytelling",
     NarrationMode.MOTIVATION: "🚀 Motivation",
+    NarrationMode.FINANCE: "💰 Finance",
+    NarrationMode.HISTORY: "🏛 History",
+    NarrationMode.EDUCATIONAL: "🎓 Educational",
+    NarrationMode.PODCAST: "🎧 Podcast",
+    NarrationMode.AUDIOBOOK: "📖 Audiobook",
     NarrationMode.NEWS: "📰 News",
-    NarrationMode.GAMING: "🎮 Gaming",
-    NarrationMode.EDUCATIONAL: "📚 Educational",
-    NarrationMode.CINEMATIC: "🎬 Cinematic",
-    NarrationMode.FUNNY: "😂 Funny",
+    NarrationMode.MEDITATION: "🧘 Meditation",
+    NarrationMode.HORROR: "😱 Horror",
+    NarrationMode.KIDS: "🎈 Kids",
+    NarrationMode.COMEDY: "😂 Comedy",
+    NarrationMode.CINEMATIC_TRAILER: "🎬 Cinematic Trailer",
 }
+
+
+@dataclass
+class AdvancedVoiceSettings:
+    """Advanced Voice Controls parameters."""
+
+    speed: float = 1.00                # 0.50x to 2.00x
+    stability: int = 75                 # 0 to 100
+    expressiveness: int = 80            # 0 to 100
+    clarity: int = 85                  # 0 to 100
+    energy: int = 75                   # 0 to 100
+    pitch_semitones: int = 0           # -20 to +20 semitones
+    volume_gain_db: float = 0.0        # -12.0 dB to +12.0 dB
+    sentence_pause_ms: int = 600       # 0 to 1500 ms
+    word_pause_ms: int = 150           # 0 to 500 ms
+    paragraph_pause_ms: int = 1200     # 0 to 3000 ms
 
 
 @dataclass
@@ -60,110 +85,182 @@ class HumanizationSettings:
     natural_pauses: bool = True
     micro_pauses: bool = True
     sentence_breathing: bool = True
-    emphasis_weight: float = 1.0        # 0.5x to 2.0x
-    pitch_variation: float = 1.0        # 0.5x to 1.5x
-    dynamic_energy: float = 1.0         # 0.5x to 1.5x
-    pause_length_sec: float = 0.35      # 0.1s to 1.0s
-    sentence_pause_sec: float = 0.65    # 0.2s to 2.0s
-    ending_softness: float = 0.8        # 0.0 to 1.0
+    comma_pauses: bool = True
+    paragraph_pauses: bool = True
+    emphasis_injection: bool = True
+    natural_pacing: bool = True
+    question_intonation: bool = True
+    exclamation_emphasis: bool = True
+    ellipsis_pause: bool = True
+    quote_handling: bool = True
+    conversation_rhythm: bool = True
 
 
-# Default Humanization Profiles per AI Narration Mode
+# 15 Complete Narration Mode Parameter Profiles
 NARRATION_MODE_PROFILES: Dict[NarrationMode, Dict[str, Any]] = {
     NarrationMode.DOCUMENTARY: {
         "speed": 0.95,
-        "pause_length_sec": 0.45,
-        "sentence_pause_sec": 0.80,
-        "pitch_variation": 0.85,
-        "dynamic_energy": 0.90,
-        "ending_softness": 0.90,
+        "stability": 85,
+        "expressiveness": 70,
+        "clarity": 90,
+        "energy": 70,
+        "pitch_semitones": -1,
+        "sentence_pause_ms": 750,
+        "word_pause_ms": 180,
+        "paragraph_pause_ms": 1500,
     },
     NarrationMode.YOUTUBE_EXPLAINER: {
         "speed": 1.05,
-        "pause_length_sec": 0.30,
-        "sentence_pause_sec": 0.55,
-        "pitch_variation": 1.15,
-        "dynamic_energy": 1.10,
-        "ending_softness": 0.70,
+        "stability": 70,
+        "expressiveness": 85,
+        "clarity": 88,
+        "energy": 85,
+        "pitch_semitones": 0,
+        "sentence_pause_ms": 500,
+        "word_pause_ms": 120,
+        "paragraph_pause_ms": 1000,
     },
-    NarrationMode.FINANCE: {
-        "speed": 1.00,
-        "pause_length_sec": 0.35,
-        "sentence_pause_sec": 0.60,
-        "pitch_variation": 0.90,
-        "dynamic_energy": 1.00,
-        "ending_softness": 0.80,
-    },
-    NarrationMode.PSYCHOLOGY: {
-        "speed": 0.90,
-        "pause_length_sec": 0.50,
-        "sentence_pause_sec": 0.90,
-        "pitch_variation": 0.80,
-        "dynamic_energy": 0.85,
-        "ending_softness": 0.95,
-    },
-    NarrationMode.HORROR: {
-        "speed": 0.85,
-        "pause_length_sec": 0.65,
-        "sentence_pause_sec": 1.10,
-        "pitch_variation": 0.70,
-        "dynamic_energy": 0.75,
-        "ending_softness": 1.00,
-    },
-    NarrationMode.EMOTIONAL_STORY: {
+    NarrationMode.STORYTELLING: {
         "speed": 0.92,
-        "pause_length_sec": 0.45,
-        "sentence_pause_sec": 0.85,
-        "pitch_variation": 1.10,
-        "dynamic_energy": 0.95,
-        "ending_softness": 0.90,
+        "stability": 65,
+        "expressiveness": 92,
+        "clarity": 85,
+        "energy": 78,
+        "pitch_semitones": -1,
+        "sentence_pause_ms": 800,
+        "word_pause_ms": 200,
+        "paragraph_pause_ms": 1600,
     },
     NarrationMode.MOTIVATION: {
         "speed": 1.08,
-        "pause_length_sec": 0.40,
-        "sentence_pause_sec": 0.70,
-        "pitch_variation": 1.25,
-        "dynamic_energy": 1.30,
-        "ending_softness": 0.60,
+        "stability": 60,
+        "expressiveness": 95,
+        "clarity": 90,
+        "energy": 98,
+        "pitch_semitones": 1,
+        "sentence_pause_ms": 650,
+        "word_pause_ms": 140,
+        "paragraph_pause_ms": 1200,
     },
-    NarrationMode.NEWS: {
-        "speed": 1.10,
-        "pause_length_sec": 0.25,
-        "sentence_pause_sec": 0.45,
-        "pitch_variation": 0.85,
-        "dynamic_energy": 1.05,
-        "ending_softness": 0.50,
+    NarrationMode.FINANCE: {
+        "speed": 1.00,
+        "stability": 90,
+        "expressiveness": 65,
+        "clarity": 95,
+        "energy": 75,
+        "pitch_semitones": 0,
+        "sentence_pause_ms": 550,
+        "word_pause_ms": 130,
+        "paragraph_pause_ms": 1100,
     },
-    NarrationMode.GAMING: {
-        "speed": 1.12,
-        "pause_length_sec": 0.20,
-        "sentence_pause_sec": 0.40,
-        "pitch_variation": 1.30,
-        "dynamic_energy": 1.35,
-        "ending_softness": 0.50,
+    NarrationMode.HISTORY: {
+        "speed": 0.94,
+        "stability": 88,
+        "expressiveness": 75,
+        "clarity": 92,
+        "energy": 72,
+        "pitch_semitones": -2,
+        "sentence_pause_ms": 780,
+        "word_pause_ms": 170,
+        "paragraph_pause_ms": 1500,
     },
     NarrationMode.EDUCATIONAL: {
         "speed": 0.98,
-        "pause_length_sec": 0.40,
-        "sentence_pause_sec": 0.70,
-        "pitch_variation": 1.00,
-        "dynamic_energy": 1.00,
-        "ending_softness": 0.85,
+        "stability": 85,
+        "expressiveness": 75,
+        "clarity": 95,
+        "energy": 75,
+        "pitch_semitones": 0,
+        "sentence_pause_ms": 650,
+        "word_pause_ms": 150,
+        "paragraph_pause_ms": 1300,
     },
-    NarrationMode.CINEMATIC: {
-        "speed": 0.88,
-        "pause_length_sec": 0.55,
-        "sentence_pause_sec": 1.00,
-        "pitch_variation": 0.80,
-        "dynamic_energy": 0.90,
-        "ending_softness": 0.95,
+    NarrationMode.PODCAST: {
+        "speed": 1.02,
+        "stability": 75,
+        "expressiveness": 88,
+        "clarity": 85,
+        "energy": 80,
+        "pitch_semitones": 0,
+        "sentence_pause_ms": 580,
+        "word_pause_ms": 130,
+        "paragraph_pause_ms": 1150,
     },
-    NarrationMode.FUNNY: {
+    NarrationMode.AUDIOBOOK: {
+        "speed": 0.90,
+        "stability": 80,
+        "expressiveness": 90,
+        "clarity": 92,
+        "energy": 70,
+        "pitch_semitones": -1,
+        "sentence_pause_ms": 850,
+        "word_pause_ms": 200,
+        "paragraph_pause_ms": 1800,
+    },
+    NarrationMode.NEWS: {
         "speed": 1.10,
-        "pause_length_sec": 0.28,
-        "sentence_pause_sec": 0.50,
-        "pitch_variation": 1.40,
-        "dynamic_energy": 1.25,
-        "ending_softness": 0.65,
+        "stability": 95,
+        "expressiveness": 60,
+        "clarity": 98,
+        "energy": 82,
+        "pitch_semitones": 0,
+        "sentence_pause_ms": 450,
+        "word_pause_ms": 100,
+        "paragraph_pause_ms": 900,
+    },
+    NarrationMode.MEDITATION: {
+        "speed": 0.75,
+        "stability": 95,
+        "expressiveness": 70,
+        "clarity": 88,
+        "energy": 40,
+        "pitch_semitones": -3,
+        "sentence_pause_ms": 1200,
+        "word_pause_ms": 300,
+        "paragraph_pause_ms": 2500,
+    },
+    NarrationMode.HORROR: {
+        "speed": 0.85,
+        "stability": 55,
+        "expressiveness": 95,
+        "clarity": 80,
+        "energy": 65,
+        "pitch_semitones": -4,
+        "sentence_pause_ms": 1000,
+        "word_pause_ms": 250,
+        "paragraph_pause_ms": 2000,
+    },
+    NarrationMode.KIDS: {
+        "speed": 0.95,
+        "stability": 60,
+        "expressiveness": 98,
+        "clarity": 90,
+        "energy": 90,
+        "pitch_semitones": 3,
+        "sentence_pause_ms": 700,
+        "word_pause_ms": 180,
+        "paragraph_pause_ms": 1400,
+    },
+    NarrationMode.COMEDY: {
+        "speed": 1.10,
+        "stability": 50,
+        "expressiveness": 98,
+        "clarity": 85,
+        "energy": 92,
+        "pitch_semitones": 2,
+        "sentence_pause_ms": 500,
+        "word_pause_ms": 120,
+        "paragraph_pause_ms": 1000,
+    },
+    NarrationMode.CINEMATIC_TRAILER: {
+        "speed": 0.88,
+        "stability": 80,
+        "expressiveness": 95,
+        "clarity": 92,
+        "energy": 95,
+        "pitch_semitones": -5,
+        "sentence_pause_ms": 1100,
+        "word_pause_ms": 280,
+        "paragraph_pause_ms": 2200,
     },
 }
