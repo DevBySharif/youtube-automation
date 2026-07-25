@@ -182,6 +182,12 @@ class ControlsPanel(QWidget):
         self.library_btn.clicked.connect(self._open_voice_library)
         card_header.addWidget(self.library_btn)
 
+        self.dict_btn = QPushButton("📖 Dict")
+        self.dict_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
+        self.dict_btn.setToolTip("Custom Pronunciation Dictionary Studio")
+        self.dict_btn.clicked.connect(self._open_dictionary_studio)
+        card_header.addWidget(self.dict_btn)
+
         self.clone_btn = QPushButton("🎙 Clone")
         self.clone_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
         self.clone_btn.clicked.connect(self._open_voice_cloning)
@@ -418,6 +424,11 @@ class ControlsPanel(QWidget):
 
     def _open_voice_cloning(self) -> None:
         dlg = VoiceCloningDialog(self)
+        dlg.exec()
+
+    def _open_dictionary_studio(self) -> None:
+        from ui.dictionary_dialog import DictionaryDialog
+        dlg = DictionaryDialog(self)
         dlg.exec()
 
     def _open_history_studio(self) -> None:

@@ -133,8 +133,10 @@ class KokoroEngine(TTSEngine):
         audio    = np.concatenate(audio_chunks, axis=0)
         duration = len(audio) / self.SAMPLE_RATE
 
-        out_dir = os.path.dirname(output_path)
-        os.makedirs(out_dir, exist_ok=True)
+        abs_output_path = os.path.abspath(output_path)
+        out_dir = os.path.dirname(abs_output_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
 
         tmp_fd, tmp_path = tempfile.mkstemp(dir=out_dir, suffix=".wav.tmp")
         try:
