@@ -97,6 +97,8 @@ a = Analysis(
             'voice_engine.dictionary',
             'voice_engine.presets',
             'voice_engine.audio_validator',
+            'voice_engine.intelligence',
+            'voice_engine.exporters',
             'ui.voice_cloning_dialog',
             'ui.voice_library_dialog',
             'ui.advanced_voice_panel',
