@@ -200,15 +200,16 @@ class ControlsPanel(QWidget):
             self.voice_combo.addItem(voice_label, userData=voice_id)
         card_layout.addWidget(self.voice_combo)
 
-        # Metadata Label
+        # Metadata & Badges Row
         meta_row = QHBoxLayout()
         self.meta_lang_label = QLabel("Language: English (US)")
         self.meta_lang_label.setObjectName("subTextLabel")
         meta_row.addWidget(self.meta_lang_label)
         meta_row.addStretch()
-        self.meta_gender_label = QLabel("Female • Natural ★★★★★")
-        self.meta_gender_label.setObjectName("subTextLabel")
-        meta_row.addWidget(self.meta_gender_label)
+
+        badge_lbl = QLabel("Offline • Neural • 24kHz")
+        badge_lbl.setStyleSheet("background-color: #1E1E1E; color: #9EFF00; border: 1px solid #9EFF00; border-radius: 4px; padding: 2px 6px; font-size: 7.5pt; font-weight: 700;")
+        meta_row.addWidget(badge_lbl)
         card_layout.addLayout(meta_row)
 
         # Speed Header & Slider
@@ -382,8 +383,7 @@ class ControlsPanel(QWidget):
         else:
             gender_str = "Male • Natural ★★★★★"
 
-        self.meta_lang_label.setText(lang_str)
-        self.meta_gender_label.setText(gender_str)
+        self.meta_lang_label.setText(f"{lang_str} • {gender_str}")
 
         is_fav = VoiceFavoritesManager.get_instance().is_favorite(voice_id)
         self.fav_btn.setText("⭐" if is_fav else "☆")

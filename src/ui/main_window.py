@@ -339,8 +339,22 @@ class MainWindow(QMainWindow):
     # ── Worker Callbacks ──────────────────────────────────────────────────────
 
     def _on_status_changed(self, message: str) -> None:
-        self.controls_panel.set_working(message)
-        self.statusBar().showMessage(message)
+        formatted_status = message
+        if "Text Normalization" in message or "Normalizing" in message:
+            formatted_status = "Stage 1/6: Preparing & Normalizing Text…"
+        elif "Kokoro" in message or "Synthesizing" in message:
+            formatted_status = "Stage 2/6: Kokoro Neural Voice Synthesis…"
+        elif "Validation" in message or "Validating" in message:
+            formatted_status = "Stage 3/6: Audio Quality Validation…"
+        elif "Whisper" in message or "Aligning" in message:
+            formatted_status = "Stage 4/6: Whisper Word Timestamp Alignment…"
+        elif "Subtitle" in message or "Exporting" in message:
+            formatted_status = "Stage 5/6: Exporting Subtitles (SRT/VTT/ASS)…"
+        elif "Intelligence" in message or "Planning" in message:
+            formatted_status = "Stage 6/6: Narration Intelligence & Scene Planning…"
+
+        self.controls_panel.set_working(formatted_status)
+        self.statusBar().showMessage(formatted_status)
 
     def _on_pipeline_finished(self, timestamp_script: str, audio_path: str) -> None:
         log.info("Pipeline finished.")
