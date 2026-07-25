@@ -1,0 +1,21 @@
+# Timestamp Script Analyzer Requirements
+PySide6>=6.5.0
+torch>=2.0.0
+torchaudio>=2.0.0
+kokoro>=0.7.0
+misaki>=0.7.0
+phonemizer>=3.3.0
+language_tags>=1.2.0
+faster-whisper>=1.0.0
+transformers>=4.38.0
+huggingface_hub>=0.20.0
+tokenizers>=0.15.0
+safetensors>=0.4.0
+scipy>=1.11.0
+spacy>=3.7.0
+en-core-web-sm>=3.8.0
+num2words>=0.5.13
+soundfile>=0.12.1
+loguru>=0.7.2
+numpy>=1.24.0
+cffi>=1.16.0

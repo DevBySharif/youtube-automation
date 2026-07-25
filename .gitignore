@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# PyInstaller / Build outputs
+build/
+dist/
+*.spec.bak
+
+# Logs & Temp Files
+*.log
+.perm_test
+resources/espeak_raw/
+espeak-ng-X64.msi
+AppData/
+
+# Antigravity Brain Scratch / Logs
+scratch/
+.system_generated/
