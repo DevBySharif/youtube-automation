@@ -261,8 +261,20 @@ class NarrationIntelligenceEngine:
                 scene_start = w.end_time
                 scene_words = []
 
-        # 5. Build Master JSON
-        return MasterVideoAutomationJSON(
+        # 5. Build Image Timeline Plan via ImageTimelineEngine
+        from voice_engine.image_planner import ImageTimelineEngine, VisualStyle
+        img_engine = ImageTimelineEngine()
+        img_plan = img_engine.create_plan(
+            narration_json={
+                "words": [asdict(w) for w in words_intel],
+                "scenes": [asdict(s) for s in scenes_intel],
+                "keywords": keywords_dict,
+            },
+            style=VisualStyle.CINEMATIC,
+        )
+
+        # 6. Build Master JSON
+        master_json = MasterVideoAutomationJSON(
             script_title="YouTube Automation Narration",
             voice_id=voice_id,
             provider_id=provider_id,
@@ -278,3 +290,16 @@ class NarrationIntelligenceEngine:
             silence_map=[asdict(s) for s in silences],
             subtitle_blocks=[asdict(sub) for sub in subtitles],
         )
+
+        # Extend with Phase 1 AI Video Automation Image Plan
+        dict_rep = asdict(master_json)
+        dict_rep["image_plan"] = img_plan.image_events
+        dict_rep["camera_plan"] = img_plan.camera_plan
+        dict_rep["character_registry"] = img_plan.character_registry
+        dict_rep["location_registry"] = img_plan.location_registry
+        dict_rep["object_registry"] = img_plan.object_registry
+        dict_rep["motion_plan"] = img_plan.motion_plan
+        dict_rep["visual_style"] = img_plan.visual_style
+        dict_rep["continuity_report"] = img_plan.continuity_report
+
+        return dict_rep
