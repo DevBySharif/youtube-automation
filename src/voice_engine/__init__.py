@@ -10,6 +10,7 @@ from voice_engine.registry import VoiceProviderRegistry
 from voice_engine.narration_modes import NarrationMode, HumanizationSettings, NARRATION_MODE_LABELS, NARRATION_MODE_PROFILES
 from voice_engine.post_processing import PostProcessingConfig, AudioPostProcessor
 from voice_engine.intelligence import NarrationIntelligenceEngine, MasterVideoAutomationJSON
+from voice_engine.exporters import SubtitleExporter
 from voice_engine.image_planner import ImageTimelineEngine, ImageTimelinePlan, VisualStyle
 
 __all__ = [
