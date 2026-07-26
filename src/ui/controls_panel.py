@@ -66,6 +66,7 @@ class ControlsPanel(QWidget):
         # Single Main Scroll Area for Right Panel
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setStyleSheet("""
             QScrollArea {
                 border: none;
