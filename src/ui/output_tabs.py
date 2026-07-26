@@ -79,12 +79,14 @@ class TimestampTab(QWidget):
         self.text_edit = QPlainTextEdit()
         self.text_edit.setReadOnly(True)
         self.text_edit.setPlaceholderText(
-            "🎙  NO TIMESTAMP SCRIPT GENERATED YET\n\n"
-            "Paste a script above and click ▶ Generate to produce:\n"
-            "  • Synchronized Word & Sentence Timestamps\n"
-            "  • SRT, VTT, and ASS Subtitle Files\n"
-            "  • AI Image Timeline & Scene Concept Plans\n"
-            "  • Master Video Automation JSON"
+            "✨  READY TO GENERATE\n\n"
+            "Paste your script on the left and click ▶ Generate Narration.\n\n"
+            "You will receive:\n"
+            "  ✓ High Quality Neural Voiceover (.wav)\n"
+            "  ✓ Synchronized Word & Sentence Timestamps\n"
+            "  ✓ SRT, VTT, and ASS Subtitle Files\n"
+            "  ✓ AI Image Timeline & Scene Concept Plans\n"
+            "  ✓ Master Video Automation JSON"
         )
         font = QFont("Consolas", 10.5)
         font.setStyleHint(QFont.StyleHint.Monospace)

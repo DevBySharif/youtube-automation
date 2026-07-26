@@ -1,7 +1,7 @@
 """
 parameters.py
-Metadata registry for Voice Engine parameters.
-Enables dynamic, data-driven UI generation and provider-aware capability evaluation.
+Metadata registry for Voice Engine parameters with creator-friendly human labels.
+Replaces technical jargon with clear, intuitive terms for YouTube creators.
 """
 
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ class VoiceParameterSpec:
     """Specification metadata for an advanced voice engine parameter."""
     id: str
     name: str
-    category: str  # "Speech", "Pitch", "Audio", "Timing", "Emotion"
+    category: str  # "Speech & Pitch", "Audio", "Timing & Pauses", "Emotion & Style"
     param_type: str  # "int" or "float"
     min_val: float
     max_val: float
@@ -21,14 +21,14 @@ class VoiceParameterSpec:
     default_val: float
     unit: str
     description: str
-    supported_providers: List[str]  # List of provider IDs supporting this parameter
+    supported_providers: List[str]
 
 
 ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
     # ── SPEECH & PITCH ────────────────────────────────────────────────────────
     VoiceParameterSpec(
         id="speed",
-        name="Speed Multiplier",
+        name="Voice Speed",
         category="Speech & Pitch",
         param_type="float",
         min_val=0.5,
@@ -36,12 +36,12 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=0.1,
         default_val=1.0,
         unit="x",
-        description="Speech synthesis rate multiplier",
+        description="Speech rate multiplier (Slow ────●──── Fast)",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="pitch_semitones",
-        name="Pitch Shift",
+        name="Voice Pitch",
         category="Speech & Pitch",
         param_type="int",
         min_val=-20,
@@ -49,13 +49,13 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=1,
         default_val=0,
         unit=" st",
-        description="Resample pitch shift in semitones (-20 to +20)",
+        description="Voice tone pitch (Lower ────●──── Higher)",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     # ── AUDIO OUTPUT ──────────────────────────────────────────────────────────
     VoiceParameterSpec(
         id="volume_gain_db",
-        name="Volume Gain",
+        name="Voice Volume",
         category="Audio Output",
         param_type="int",
         min_val=-12,
@@ -63,13 +63,13 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=1,
         default_val=0,
         unit=" dB",
-        description="Master output volume gain boost or attenuation",
+        description="Voice loudness boost or reduction",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     # ── TIMING & PAUSES ───────────────────────────────────────────────────────
     VoiceParameterSpec(
         id="sentence_pause_ms",
-        name="Sentence Pause",
+        name="Pause Between Sentences",
         category="Timing & Pauses",
         param_type="int",
         min_val=0,
@@ -77,12 +77,12 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=50,
         default_val=600,
         unit=" ms",
-        description="Injected silence pause duration after full stops",
+        description="Silence duration added after full stops and punctuation",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="word_pause_ms",
-        name="Word Pause",
+        name="Pause Between Words",
         category="Timing & Pauses",
         param_type="int",
         min_val=0,
@@ -90,12 +90,12 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=10,
         default_val=150,
         unit=" ms",
-        description="Injected pause duration between spoken words",
+        description="Micro-pause duration added between individual spoken words",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="paragraph_pause_ms",
-        name="Paragraph Pause",
+        name="Pause Between Paragraphs",
         category="Timing & Pauses",
         param_type="int",
         min_val=0,
@@ -103,60 +103,60 @@ ADVANCED_PARAMETER_METADATA: List[VoiceParameterSpec] = [
         step=100,
         default_val=1200,
         unit=" ms",
-        description="Injected pause duration between paragraphs",
+        description="Silence duration added between paragraph breaks",
         supported_providers=["kokoro", "xtts", "elevenlabs", "fish_speech"],
     ),
     # ── NEURAL EMOTION & STYLE (PROVIDER DEPENDENT) ───────────────────────────
     VoiceParameterSpec(
         id="stability",
-        name="Stability",
-        category="Neural Emotion & Style",
+        name="Voice Consistency",
+        category="Emotion & Style",
         param_type="int",
         min_val=0,
         max_val=100,
         step=1,
         default_val=75,
         unit="%",
-        description="Voice consistency across sentences (Requires XTTS / ElevenLabs)",
+        description="Voice stability across sentences (Requires XTTS / ElevenLabs)",
         supported_providers=["xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="expressiveness",
-        name="Expressiveness",
-        category="Neural Emotion & Style",
+        name="Emotional Variety",
+        category="Emotion & Style",
         param_type="int",
         min_val=0,
         max_val=100,
         step=1,
         default_val=80,
         unit="%",
-        description="Emotional inflection variance (Requires XTTS / ElevenLabs)",
+        description="Emotional tone inflection (Requires XTTS / ElevenLabs)",
         supported_providers=["xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="clarity",
-        name="Clarity",
-        category="Neural Emotion & Style",
+        name="Pronunciation Clarity",
+        category="Emotion & Style",
         param_type="int",
         min_val=0,
         max_val=100,
         step=1,
         default_val=85,
         unit="%",
-        description="Phoneme sharpness control (Requires XTTS / ElevenLabs)",
+        description="Phoneme articulation sharpness (Requires XTTS / ElevenLabs)",
         supported_providers=["xtts", "elevenlabs", "fish_speech"],
     ),
     VoiceParameterSpec(
         id="energy",
-        name="Energy",
-        category="Neural Emotion & Style",
+        name="Voice Energy",
+        category="Emotion & Style",
         param_type="int",
         min_val=0,
         max_val=100,
         step=1,
         default_val=75,
         unit="%",
-        description="Dynamic vocal projection (Requires XTTS / ElevenLabs)",
+        description="Vocal projection dynamics (Requires XTTS / ElevenLabs)",
         supported_providers=["xtts", "elevenlabs", "fish_speech"],
     ),
 ]
