@@ -201,7 +201,7 @@ QProgressBar {
     background-color: #161616;
     border: none;
     border-radius: 3px;
-    height: 5px;
+    height: 6px;
     text-align: center;
     color: transparent;
 }
@@ -234,24 +234,26 @@ QPushButton:disabled {
 }
 
 QPushButton#generateButton {
-    background-color: #9EFF00;
-    border: none;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B8FF3B, stop:1 #9EFF00);
+    border: 1px solid #9EFF00;
     color: #0D0D0D;
-    font-size: 11pt;
-    font-weight: 700;
-    padding: 13px 20px;
+    font-size: 11.5pt;
+    font-weight: 800;
+    padding: 14px 24px;
     border-radius: 10px;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
 }
 QPushButton#generateButton:hover {
-    background-color: #B8FF3B;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #CEFF66, stop:1 #B8FF3B);
+    border-color: #CEFF66;
 }
 QPushButton#generateButton:pressed {
-    background-color: #82D600;
+    background: #82D600;
 }
 QPushButton#generateButton:disabled {
-    background-color: #222222;
-    color: #555555;
+    background: #222222;
+    border-color: #333333;
+    color: #666666;
 }
 
 QPushButton#previewButton {

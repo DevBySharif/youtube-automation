@@ -122,6 +122,23 @@ class ControlsPanel(QWidget):
         core_layout.setContentsMargins(6, 10, 6, 6)
         core_layout.setSpacing(10)
 
+        # Workflow Mode Selector Card (Item 1 & User Recommendation)
+        wf_card = QFrame()
+        wf_card.setObjectName("card")
+        wf_layout = QHBoxLayout(wf_card)
+        wf_layout.setContentsMargins(12, 8, 12, 8)
+        wf_lbl = QLabel("WORKFLOW:")
+        wf_lbl.setObjectName("sectionLabel")
+        wf_layout.addWidget(wf_lbl)
+
+        self.workflow_combo = QComboBox()
+        self.workflow_combo.addItem("🎙  Voice Only", userData="voice_only")
+        self.workflow_combo.addItem("📝  Voice + Timestamps", userData="voice_timestamps")
+        self.workflow_combo.addItem("🎬  Full Video Automation", userData="full_automation")
+        self.workflow_combo.setCurrentIndex(2)  # Full Video Automation default
+        wf_layout.addWidget(self.workflow_combo, stretch=1)
+        core_layout.addWidget(wf_card)
+
         # Provider & Profile Card
         provider_card = QFrame()
         provider_card.setObjectName("card")

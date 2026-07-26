@@ -1,11 +1,11 @@
 """
 script_panel.py
-Left panel — voiceover script editor with drag & drop support and live script statistics.
+Left panel — voiceover script editor with drag & drop support, line counts, paragraph analytics, and live script statistics.
 """
 
 import os
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QFrame, QPushButton,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QDragEnterEvent, QDropEvent
@@ -88,7 +88,7 @@ class ScriptPanel(QWidget):
         card.setObjectName("card")
         c_layout = QVBoxLayout(card)
         c_layout.setContentsMargins(16, 16, 16, 16)
-        c_layout.setSpacing(12)
+        c_layout.setSpacing(10)
 
         # Header row
         header_row = QHBoxLayout()
@@ -96,6 +96,17 @@ class ScriptPanel(QWidget):
         label.setObjectName("sectionLabel")
         header_row.addWidget(label)
         header_row.addStretch()
+
+        sample_btn = QPushButton("📋 Sample")
+        sample_btn.setStyleSheet("padding: 2px 6px; font-size: 8pt;")
+        sample_btn.clicked.connect(self._load_sample_script)
+        header_row.addWidget(sample_btn)
+
+        clear_btn = QPushButton("🗑 Clear")
+        clear_btn.setStyleSheet("padding: 2px 6px; font-size: 8pt;")
+        clear_btn.clicked.connect(lambda: self.editor.setPlainText(""))
+        header_row.addWidget(clear_btn)
+
         c_layout.addLayout(header_row)
 
         self.editor = ScriptEditor()
@@ -118,17 +129,19 @@ class ScriptPanel(QWidget):
         """)
         stats_layout = QHBoxLayout(self.stats_frame)
         stats_layout.setContentsMargins(8, 4, 8, 4)
-        stats_layout.setSpacing(14)
+        stats_layout.setSpacing(10)
 
         self.words_label = QLabel("Words: 0")
-        self.chars_label = QLabel("Chars: 0")
-        self.est_label   = QLabel("Est. Audio: 0s")
+        self.paras_label = QLabel("Paras: 0")
+        self.est_label = QLabel("Est. Audio: 0s")
+        self.diff_label = QLabel("Difficulty: Normal")
 
         stats_layout.addWidget(self.words_label)
         stats_layout.addWidget(QLabel("|"))
-        stats_layout.addWidget(self.chars_label)
+        stats_layout.addWidget(self.paras_label)
         stats_layout.addWidget(QLabel("|"))
         stats_layout.addWidget(self.est_label, stretch=1)
+        stats_layout.addWidget(self.diff_label)
 
         c_layout.addWidget(self.stats_frame)
 
@@ -137,6 +150,14 @@ class ScriptPanel(QWidget):
     def _connect_signals(self) -> None:
         self.editor.textChanged.connect(self._update_stats)
 
+    def _load_sample_script(self) -> None:
+        sample = (
+            "There is a stranger you have never forgotten.\n\n"
+            "Someone you saw once, maybe on a train, or across a crowded room in 2026.\n\n"
+            "YouTube automation represents the future of synthetic media creation."
+        )
+        self.editor.setPlainText(sample)
+
     def set_speed_multiplier(self, speed: float) -> None:
         self._speed_multiplier = speed
         self._update_stats()
@@ -144,16 +165,25 @@ class ScriptPanel(QWidget):
     def _update_stats(self) -> None:
         text = self.get_script()
         words = len(text.split()) if text else 0
-        chars = len(text)
+        paras = len([p for p in text.split("\n\n") if p.strip()]) if text else 0
 
         wpm = _KOKORO_WPM * self._speed_multiplier
         total_seconds = int((words / wpm) * 60) if wpm > 0 and words > 0 else 0
         m, s = divmod(total_seconds, 60)
         est_str = f"{m}m {s:02d}s" if m > 0 else f"{s}s"
 
+        avg_word_len = sum(len(w) for w in text.split()) / words if words > 0 else 0
+        if avg_word_len > 6.0:
+            diff_str = "Difficulty: Complex"
+        elif avg_word_len > 4.5:
+            diff_str = "Difficulty: Normal"
+        else:
+            diff_str = "Difficulty: Easy"
+
         self.words_label.setText(f"Words: {words:,}")
-        self.chars_label.setText(f"Chars: {chars:,}")
+        self.paras_label.setText(f"Paras: {paras}")
         self.est_label.setText(f"Est. Audio: ~{est_str}")
+        self.diff_label.setText(diff_str)
 
     def get_script(self) -> str:
         return self.editor.toPlainText().strip()

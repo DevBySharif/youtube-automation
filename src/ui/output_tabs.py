@@ -78,7 +78,14 @@ class TimestampTab(QWidget):
 
         self.text_edit = QPlainTextEdit()
         self.text_edit.setReadOnly(True)
-        self.text_edit.setPlaceholderText("Timestamp script will appear here after generation…")
+        self.text_edit.setPlaceholderText(
+            "🎙  NO TIMESTAMP SCRIPT GENERATED YET\n\n"
+            "Paste a script above and click ▶ Generate to produce:\n"
+            "  • Synchronized Word & Sentence Timestamps\n"
+            "  • SRT, VTT, and ASS Subtitle Files\n"
+            "  • AI Image Timeline & Scene Concept Plans\n"
+            "  • Master Video Automation JSON"
+        )
         font = QFont("Consolas", 10.5)
         font.setStyleHint(QFont.StyleHint.Monospace)
         self.text_edit.setFont(font)
