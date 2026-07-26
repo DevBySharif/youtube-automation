@@ -99,7 +99,7 @@ class AdvancedVoicePanel(QFrame):
         self.content_widget.setStyleSheet("background-color: transparent;")
         content_layout = QVBoxLayout(self.content_widget)
         content_layout.setContentsMargins(0, 4, 0, 4)
-        content_layout.setSpacing(16)
+        content_layout.setSpacing(14)
 
         # ── 1. SPEECH & PITCH ────────────────────────────────────────────────
         speech_box, speech_layout = self._create_section("🗣 SPEECH & PITCH")
@@ -140,9 +140,11 @@ class AdvancedVoicePanel(QFrame):
         self._is_collapsed = not self._is_collapsed
         if self._is_collapsed:
             self.scroll_area.hide()
+            self.scroll_area.setMinimumHeight(0)
             self.toggle_btn.setText("⚙️  Advanced Voice Controls  ▼")
         else:
             self.scroll_area.show()
+            self.scroll_area.setMinimumHeight(350)
             self.toggle_btn.setText("⚙️  Advanced Voice Controls  ▲")
 
     def _create_section(self, title: str) -> tuple[QFrame, QVBoxLayout]:

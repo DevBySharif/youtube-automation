@@ -18,7 +18,7 @@ from typing import Optional, Dict, Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
     QComboBox, QSlider, QPushButton, QProgressBar, QSpacerItem, QSizePolicy, QFrame,
-    QTabWidget,
+    QTabWidget, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QThread, QUrl
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -282,7 +282,12 @@ class ControlsPanel(QWidget):
         m_layout.addWidget(self.model_combo)
 
         core_layout.addWidget(model_card)
-        self.control_tabs.addTab(self.tab_core, "Voice Studio")
+
+        self.tab_core_scroll = QScrollArea()
+        self.tab_core_scroll.setWidgetResizable(True)
+        self.tab_core_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.tab_core_scroll.setWidget(self.tab_core)
+        self.control_tabs.addTab(self.tab_core_scroll, "Voice Studio")
 
         # ── TAB 2: QUALITY & POST-PROCESSING ──────────────────────────────────
         self.tab_fx = QWidget()
