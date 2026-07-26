@@ -1,10 +1,10 @@
 """
 advanced_voice_panel.py
-Collapsible Advanced Voice Controls Panel featuring:
-  • Grouped Sections: Speech & Tone, Expression & Emotion, Timing & Pauses
-  • Double-click slider reset to defaults
-  • Numeric Spinboxes & Wheel Support
-  • Tooltips & Accessibility
+Capability-Driven Advanced Voice Controls Panel featuring:
+  • Active provider validation & non-placebo control management
+  • Grouped Sections: Speech & Pitch, Audio Output, Timing & Pauses, Neural Emotion & Style
+  • Provider badges for unsupported features (e.g. "Available for XTTS / ElevenLabs")
+  • Double-click slider reset & numeric spinboxes
 """
 
 from PySide6.QtWidgets import (
@@ -27,7 +27,7 @@ class ResetSlider(QSlider):
 
 
 class AdvancedVoicePanel(QFrame):
-    """Collapsible panel for advanced voice & timing parameters."""
+    """Capability-driven panel for advanced voice & timing parameters."""
 
     settings_changed = Signal()
 
@@ -66,25 +66,28 @@ class AdvancedVoicePanel(QFrame):
         self.content_widget = QWidget()
         layout = QVBoxLayout(self.content_widget)
         layout.setContentsMargins(0, 4, 0, 4)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
 
-        # ── SECTION 1: SPEECH & TONE ─────────────────────────────────────────
-        layout.addWidget(self._create_section_header("SPEECH & TONE"))
-        layout.addLayout(self._create_slider_row("Pitch", -20, 20, 0, " st", "pitch_slider", "pitch_spin", "Pitch shift in semitones"))
-        layout.addLayout(self._create_slider_row("Volume Gain", -12, 12, 0, " dB", "vol_slider", "vol_spin", "Volume boost or attenuation in dB"))
+        # ── SECTION 1: SPEECH & PITCH (Active via AudioPostProcessor) ──────
+        layout.addWidget(self._create_section_header("🗣 SPEECH & PITCH"))
+        layout.addLayout(self._create_slider_row("Pitch Shift", -20, 20, 0, " st", "pitch_slider", "pitch_spin", "Resample pitch shift in semitones (-20 to +20)", active=True))
 
-        # ── SECTION 2: EXPRESSION & EMOTION ───────────────────────────────
-        layout.addWidget(self._create_section_header("EXPRESSION & EMOTION"))
-        layout.addLayout(self._create_slider_row("Stability", 0, 100, 75, "%", "stability_slider", "stability_spin", "Voice consistency across sentences"))
-        layout.addLayout(self._create_slider_row("Expressiveness", 0, 100, 80, "%", "expressiveness_slider", "expressiveness_spin", "Emotional variation and inflection"))
-        layout.addLayout(self._create_slider_row("Clarity", 0, 100, 85, "%", "clarity_slider", "clarity_spin", "Phoneme sharpness and detail"))
-        layout.addLayout(self._create_slider_row("Energy", 0, 100, 75, "%", "energy_slider", "energy_spin", "Vocal projection and dynamics"))
+        # ── SECTION 2: AUDIO OUTPUT & VOLUME (Active via AudioPostProcessor)
+        layout.addWidget(self._create_section_header("🔊 AUDIO OUTPUT & VOLUME"))
+        layout.addLayout(self._create_slider_row("Volume Gain", -12, 12, 0, " dB", "vol_slider", "vol_spin", "Master output gain boost or attenuation in dB", active=True))
 
-        # ── SECTION 3: TIMING & PAUSES ─────────────────────────────────────
-        layout.addWidget(self._create_section_header("TIMING & PAUSES"))
-        layout.addLayout(self._create_slider_row("Sentence Pause", 0, 1500, 600, " ms", "sentence_pause_slider", "sentence_pause_spin", "Pause duration after full stops"))
-        layout.addLayout(self._create_slider_row("Word Pause", 0, 500, 150, " ms", "word_pause_slider", "word_pause_spin", "Pause duration between spoken words"))
-        layout.addLayout(self._create_slider_row("Paragraph Pause", 0, 3000, 1200, " ms", "para_pause_slider", "para_pause_spin", "Pause duration between paragraphs"))
+        # ── SECTION 3: TIMING & PAUSE CONTROL (Active via AudioPostProcessor)
+        layout.addWidget(self._create_section_header("⏱ TIMING & PAUSE CONTROL"))
+        layout.addLayout(self._create_slider_row("Sentence Pause", 0, 1500, 600, " ms", "sentence_pause_slider", "sentence_pause_spin", "Injected silence pause duration after full stops", active=True))
+        layout.addLayout(self._create_slider_row("Word Pause", 0, 500, 150, " ms", "word_pause_slider", "word_pause_spin", "Injected pause duration between spoken words", active=True))
+        layout.addLayout(self._create_slider_row("Paragraph Pause", 0, 3000, 1200, " ms", "para_pause_slider", "para_pause_spin", "Injected pause duration between paragraphs", active=True))
+
+        # ── SECTION 4: NEURAL EMOTION & STYLE (XTTS / ElevenLabs Only) ─────
+        layout.addWidget(self._create_section_header("🎭 NEURAL EMOTION & STYLE (XTTS / ElevenLabs / Fish Speech)"))
+        layout.addLayout(self._create_slider_row("Stability", 0, 100, 75, "%", "stability_slider", "stability_spin", "Voice consistency across sentences (Requires XTTS / ElevenLabs)", active=False, badge="🔒 XTTS Only"))
+        layout.addLayout(self._create_slider_row("Expressiveness", 0, 100, 80, "%", "expressiveness_slider", "expressiveness_spin", "Emotional inflection variance (Requires XTTS / ElevenLabs)", active=False, badge="🔒 XTTS Only"))
+        layout.addLayout(self._create_slider_row("Clarity", 0, 100, 85, "%", "clarity_slider", "clarity_spin", "Phoneme sharpness control (Requires XTTS / ElevenLabs)", active=False, badge="🔒 XTTS Only"))
+        layout.addLayout(self._create_slider_row("Energy", 0, 100, 75, "%", "energy_slider", "energy_spin", "Dynamic projection (Requires XTTS / ElevenLabs)", active=False, badge="🔒 XTTS Only"))
 
         main_layout.addWidget(self.content_widget)
         self.content_widget.hide()  # Start collapsed by default
@@ -100,24 +103,31 @@ class AdvancedVoicePanel(QFrame):
 
     def _create_section_header(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet("font-size: 7.5pt; font-weight: 700; color: #9E9E9E; letter-spacing: 1px; margin-top: 6px;")
+        lbl.setStyleSheet("font-size: 7.5pt; font-weight: 700; color: #9E9E9E; letter-spacing: 1px; margin-top: 8px;")
         return lbl
 
     def _create_slider_row(
-        self, label_text: str, min_val: int, max_val: int, default_val: int, suffix: str, slider_attr: str, spin_attr: str, tooltip: str
+        self, label_text: str, min_val: int, max_val: int, default_val: int, suffix: str, slider_attr: str, spin_attr: str, tooltip: str, active: bool = True, badge: str = ""
     ) -> QHBoxLayout:
         row = QHBoxLayout()
+
         lbl = QLabel(label_text)
-        lbl.setStyleSheet("font-size: 8.5pt; color: #F5F5F5;")
-        lbl.setToolTip(tooltip + " (Double-click slider to reset)")
+        lbl.setStyleSheet("font-size: 8.5pt; color: #F5F5F5;" if active else "font-size: 8.5pt; color: #666666;")
+        lbl.setToolTip(tooltip + " (Double-click slider to reset)" if active else tooltip)
         row.addWidget(lbl, stretch=1)
+
+        if badge:
+            badge_lbl = QLabel(badge)
+            badge_lbl.setStyleSheet("background-color: #1A1A1A; color: #888888; border: 1px solid #333333; border-radius: 4px; padding: 1px 4px; font-size: 7pt;")
+            row.addWidget(badge_lbl)
 
         slider = ResetSlider(Qt.Orientation.Horizontal, default_val)
         slider.setMinimum(min_val)
         slider.setMaximum(max_val)
         slider.setValue(default_val)
         slider.setFixedWidth(110)
-        slider.setToolTip(f"{tooltip}\nDouble-click to reset ({default_val}{suffix})")
+        slider.setEnabled(active)
+        slider.setToolTip(f"{tooltip}\nDouble-click to reset ({default_val}{suffix})" if active else tooltip)
         setattr(self, slider_attr, slider)
 
         spin = QSpinBox()
@@ -126,16 +136,25 @@ class AdvancedVoicePanel(QFrame):
         spin.setValue(default_val)
         spin.setSuffix(suffix)
         spin.setFixedWidth(75)
+        spin.setEnabled(active)
         setattr(self, spin_attr, spin)
 
-        # Sync slider & spinbox
-        slider.valueChanged.connect(spin.setValue)
-        spin.valueChanged.connect(slider.setValue)
-        slider.valueChanged.connect(lambda: self.settings_changed.emit())
+        if active:
+            slider.valueChanged.connect(spin.setValue)
+            spin.valueChanged.connect(slider.setValue)
+            slider.valueChanged.connect(lambda: self.settings_changed.emit())
 
         row.addWidget(slider)
         row.addWidget(spin)
         return row
+
+    def update_provider_capabilities(self, provider_id: str = "kokoro") -> None:
+        """Dynamically enable or disable controls based on active provider capabilities."""
+        is_diffusion = provider_id in ("xtts", "elevenlabs", "fish_speech")
+
+        for attr in ("stability_slider", "stability_spin", "expressiveness_slider", "expressiveness_spin", "clarity_slider", "clarity_spin", "energy_slider", "energy_spin"):
+            if hasattr(self, attr):
+                getattr(self, attr).setEnabled(is_diffusion)
 
     def get_settings(self) -> AdvancedVoiceSettings:
         return AdvancedVoiceSettings(
