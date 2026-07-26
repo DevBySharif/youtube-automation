@@ -1,12 +1,12 @@
 """
 controls_panel.py
-Professional Voice Engine controls panel featuring:
+Professional Voice Engine controls panel rebuilt with single QScrollArea architecture and CardWidget components.
+Features:
   • Provider Selector Architecture
   • 15 AI Narration Profiles (Documentary, YouTube Explainer, Storytelling, Motivation, Finance, History, etc.)
-  • Collapsible Advanced Voice Settings Panel (Stability, Expressiveness, Clarity, Energy, Pitch, Gain, Pauses)
+  • Metadata-Driven Advanced Voice Settings Panel (Speed, Pitch, Gain, Pauses, Stability, Expressiveness, Clarity, Energy)
   • Quality Profile Selector (Draft, Standard, High, Studio, Lossless)
-  • Generation History Studio shortcut
-  • Voice Library & Voice Cloning Studio shortcuts
+  • Generation History Studio, Voice Library & Voice Cloning Studio shortcuts
   • Async Kokoro Voice Preview with Caching
 """
 
@@ -17,7 +17,7 @@ from typing import Optional, Dict, Any
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
-    QComboBox, QSlider, QPushButton, QProgressBar, QSpacerItem, QSizePolicy, QFrame,
+    QComboBox, QSlider, QPushButton, QProgressBar, QSizePolicy, QFrame,
     QTabWidget, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QThread, QUrl
@@ -28,125 +28,80 @@ from voice_engine.registry import VoiceProviderRegistry
 from voice_engine.capabilities import QUALITY_PROFILES, QualityProfile
 from voice_engine.narration_modes import (
     NarrationMode, NARRATION_MODE_LABELS, NARRATION_MODE_PROFILES,
-    HumanizationSettings, AdvancedVoiceSettings
+    AdvancedVoiceSettings,
 )
+from voice_engine.dictionary import PronunciationDictionaryManager
 from voice_engine.favorites import VoiceFavoritesManager
-from ui.voice_cloning_dialog import VoiceCloningDialog
-from ui.voice_library_dialog import VoiceLibraryDialog
 from ui.advanced_voice_panel import AdvancedVoicePanel
-from ui.history_dialog import HistoryDialog
-
-log = logging.getLogger(__name__)
-
-
-# ── Asynchronous Voice Preview Worker ──────────────────────────────────────────
-
-class VoicePreviewWorker(QThread):
-    finished = Signal(bool, str)
-
-    def __init__(self, voice: str, speed: float, parent=None):
-        super().__init__(parent)
-        self.voice = voice
-        self.speed = speed
-        self.preview_text = "Hello! This is a preview of the selected voice."
-
-    def run(self) -> None:
-        out_dir = os.path.join(TEMP_DIR, "preview")
-        os.makedirs(out_dir, exist_ok=True)
-        tmp_path = os.path.join(out_dir, f"preview_{self.voice}.wav")
-
-        try:
-            # Check preview cache first for instant playback
-            if os.path.exists(tmp_path) and os.path.getsize(tmp_path) > 0:
-                self.finished.emit(True, tmp_path)
-                return
-
-            provider = VoiceProviderRegistry.get_instance().get_provider()
-            res_path = provider.generate_preview(
-                voice_id=self.voice,
-                output_path=tmp_path,
-                text=self.preview_text,
-                speed=self.speed,
-            )
-            if res_path and os.path.exists(res_path):
-                self.finished.emit(True, res_path)
-            else:
-                self.finished.emit(False, "Preview audio generation failed.")
-        except Exception as exc:
-            log.warning("Voice preview generation failed: %s", exc)
-            self.finished.emit(False, str(exc))
+from ui.card_widget import CardWidget
 
 
 class ControlsPanel(QWidget):
-    """
-    Professional Voice Engine panel with Provider Matrix, 15 Narration Profiles,
-    Collapsible Advanced Voice Settings, Quality Profiles, and History Studio.
-    """
+    """Right side panel containing Voice Studio, Quality Studio, and Generation Trigger."""
 
-    generate_requested = Signal(str, float, str)
-    cancel_requested   = Signal()
-    speed_changed      = Signal(float)
+    generation_requested = Signal()
+    generate_requested   = Signal()
+    cancel_requested     = Signal()
+    speed_changed        = Signal(float)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
-        self._stage_message: str   = "Ready"
-        self._elapsed_start: float = 0.0
-        self._elapsed_timer = QTimer(self)
-        self._elapsed_timer.setInterval(1000)
-        self._elapsed_timer.timeout.connect(self._tick_elapsed)
+        self._is_generating: bool = False
+        self.fav_manager = VoiceFavoritesManager()
 
-        # Audio Preview Player
-        self._preview_worker: Optional[VoicePreviewWorker] = None
-        self._player = QMediaPlayer(self)
-        self._audio_output = QAudioOutput(self)
-        self._player.setAudioOutput(self._audio_output)
-        self._audio_output.setVolume(0.9)
-        self._player.playbackStateChanged.connect(self._on_preview_state_changed)
-        self._current_preview_wav: str = ""
+        # Preview Audio Player
+        self._audio_output = QAudioOutput()
+        self._media_player = QMediaPlayer()
+        self._media_player.setAudioOutput(self._audio_output)
+        self._preview_thread: Optional[QThread] = None
 
         self._build_ui()
         self._connect_signals()
-        self._update_voice_metadata()
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 14, 14, 14)
-        layout.setSpacing(12)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(10)
 
-        # Tabbed Control Studio
-        self.control_tabs = QTabWidget()
+        # Single Main Scroll Area for Right Panel
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background: #161616;
+                width: 6px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3E3E3E;
+                border-radius: 3px;
+            }
+        """)
 
-        # ── TAB 1: VOICE & SPEECH STUDIO ──────────────────────────────────────
-        self.tab_core = QWidget()
-        core_layout = QVBoxLayout(self.tab_core)
-        core_layout.setContentsMargins(6, 10, 6, 6)
-        core_layout.setSpacing(10)
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background-color: transparent;")
+        c_layout = QVBoxLayout(self.scroll_content)
+        c_layout.setContentsMargins(0, 0, 0, 0)
+        c_layout.setSpacing(12)
 
-        # Workflow Mode Selector Card (Item 1 & User Recommendation)
-        wf_card = QFrame()
-        wf_card.setObjectName("card")
-        wf_layout = QHBoxLayout(wf_card)
-        wf_layout.setContentsMargins(12, 8, 12, 8)
-        wf_lbl = QLabel("WORKFLOW:")
-        wf_lbl.setObjectName("sectionLabel")
-        wf_layout.addWidget(wf_lbl)
-
+        # ── 1. WORKFLOW SELECTOR CARD ─────────────────────────────────────────
+        wf_card = CardWidget(title="WORKFLOW")
+        wf_row = QHBoxLayout()
         self.workflow_combo = QComboBox()
         self.workflow_combo.addItem("🎙  Voice Only", userData="voice_only")
         self.workflow_combo.addItem("📝  Voice + Timestamps", userData="voice_timestamps")
         self.workflow_combo.addItem("🎬  Full Video Automation", userData="full_automation")
-        self.workflow_combo.setCurrentIndex(2)  # Full Video Automation default
-        wf_layout.addWidget(self.workflow_combo, stretch=1)
-        core_layout.addWidget(wf_card)
+        self.workflow_combo.setCurrentIndex(2)
+        wf_row.addWidget(self.workflow_combo, stretch=1)
+        wf_card.content_layout.addLayout(wf_row)
+        c_layout.addWidget(wf_card)
 
-        # Provider & Profile Card
-        provider_card = QFrame()
-        provider_card.setObjectName("card")
-        p_layout = QVBoxLayout(provider_card)
-        p_layout.setContentsMargins(12, 10, 12, 10)
-        p_layout.setSpacing(8)
-
-        # Provider Selector
+        # ── 2. PROVIDER & PROFILE CARD ──────────────────────────────────────
+        prov_card = CardWidget(title="PROVIDER & PROFILE")
         p_row = QHBoxLayout()
         p_label = QLabel("PROVIDER")
         p_label.setObjectName("sectionLabel")
@@ -157,9 +112,8 @@ class ControlsPanel(QWidget):
             label = prov["name"] if prov["available"] else f"{prov['name']} (Plug-in)"
             self.provider_combo.addItem(label, userData=prov["id"])
         p_row.addWidget(self.provider_combo, stretch=1)
-        p_layout.addLayout(p_row)
+        prov_card.content_layout.addLayout(p_row)
 
-        # 15 AI Narration Profiles
         n_row = QHBoxLayout()
         n_label = QLabel("PROFILE")
         n_label.setObjectName("sectionLabel")
@@ -170,66 +124,56 @@ class ControlsPanel(QWidget):
             label = NARRATION_MODE_LABELS[mode]
             self.narration_combo.addItem(label, userData=mode.value)
         n_row.addWidget(self.narration_combo, stretch=1)
-        p_layout.addLayout(n_row)
+        prov_card.content_layout.addLayout(n_row)
+        c_layout.addWidget(prov_card)
 
-        core_layout.addWidget(provider_card)
+        # ── 3. VOICE & SPEECH CARD ────────────────────────────────────────────
+        voice_card = CardWidget(title="VOICE & SPEECH", icon="🎙")
+        
+        # Shortcuts row inside header
+        if voice_card.header_layout:
+            self.fav_btn = QPushButton("⭐")
+            self.fav_btn.setFixedWidth(28)
+            self.fav_btn.setToolTip("Favorite Voice")
+            self.fav_btn.clicked.connect(self._toggle_favorite)
+            voice_card.header_layout.addWidget(self.fav_btn)
 
-        # Voice Card
-        voice_card = QFrame()
-        voice_card.setObjectName("card")
-        card_layout = QVBoxLayout(voice_card)
-        card_layout.setContentsMargins(12, 12, 12, 12)
-        card_layout.setSpacing(8)
+            self.library_btn = QPushButton("📚 Library")
+            self.library_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
+            self.library_btn.clicked.connect(self._open_voice_library)
+            voice_card.header_layout.addWidget(self.library_btn)
 
-        # Header Row & Shortcuts
-        card_header = QHBoxLayout()
-        card_title = QLabel("🎙  VOICE & SPEECH")
-        card_title.setObjectName("sectionLabel")
-        card_header.addWidget(card_title)
-        card_header.addStretch()
+            self.dict_btn = QPushButton("📖 Dict")
+            self.dict_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
+            self.dict_btn.setToolTip("Custom Pronunciation Dictionary Studio")
+            self.dict_btn.clicked.connect(self._open_dictionary_studio)
+            voice_card.header_layout.addWidget(self.dict_btn)
 
-        self.fav_btn = QPushButton("⭐")
-        self.fav_btn.setFixedWidth(28)
-        self.fav_btn.setToolTip("Favorite Voice")
-        self.fav_btn.clicked.connect(self._toggle_favorite)
-        card_header.addWidget(self.fav_btn)
-
-        self.library_btn = QPushButton("📚 Library")
-        self.library_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
-        self.library_btn.clicked.connect(self._open_voice_library)
-        card_header.addWidget(self.library_btn)
-
-        self.dict_btn = QPushButton("📖 Dict")
-        self.dict_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
-        self.dict_btn.setToolTip("Custom Pronunciation Dictionary Studio")
-        self.dict_btn.clicked.connect(self._open_dictionary_studio)
-        card_header.addWidget(self.dict_btn)
-
-        self.clone_btn = QPushButton("🎙 Clone")
-        self.clone_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
-        self.clone_btn.clicked.connect(self._open_voice_cloning)
-        card_header.addWidget(self.clone_btn)
-        card_layout.addLayout(card_header)
+            self.clone_btn = QPushButton("🎙 Clone")
+            self.clone_btn.setStyleSheet("padding: 3px 6px; font-size: 8pt;")
+            self.clone_btn.clicked.connect(self._open_voice_cloning)
+            voice_card.header_layout.addWidget(self.clone_btn)
 
         # Voice Dropdown
         self.voice_combo = QComboBox()
         for voice_id, voice_label in VOICES:
             self.voice_combo.addItem(voice_label, userData=voice_id)
-        card_layout.addWidget(self.voice_combo)
+        voice_card.content_layout.addWidget(self.voice_combo)
 
-        # Metadata & Badges Row
+        # Metadata Row
         meta_row = QHBoxLayout()
+        meta_row.setSpacing(6)
         self.meta_lang_label = QLabel("Language: English (US)")
         self.meta_lang_label.setObjectName("subTextLabel")
+        self.meta_lang_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         meta_row.addWidget(self.meta_lang_label)
-        meta_row.addStretch()
 
         badge_lbl = QLabel("Offline • Neural • 24kHz")
         badge_lbl.setStyleSheet("background-color: #1E1E1E; color: #9EFF00; border: 1px solid #9EFF00; border-radius: 4px; padding: 2px 6px; font-size: 7.5pt; font-weight: 700;")
         meta_row.addWidget(badge_lbl)
-        card_layout.addLayout(meta_row)
+        voice_card.content_layout.addLayout(meta_row)
 
-        # Speed Header & Slider
+        # Speed Slider
         speed_header = QHBoxLayout()
         speed_title = QLabel("Speed")
         speed_title.setStyleSheet("font-size: 8.5pt; font-weight: 600; color: #F5F5F5;")
@@ -238,7 +182,7 @@ class ControlsPanel(QWidget):
         self.speed_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.speed_label.setStyleSheet("color: #9EFF00; font-weight: 700; font-size: 9pt;")
         speed_header.addWidget(self.speed_label)
-        card_layout.addLayout(speed_header)
+        voice_card.content_layout.addLayout(speed_header)
 
         speed_row = QHBoxLayout()
         speed_row.addWidget(QLabel("0.5×"))
@@ -249,361 +193,218 @@ class ControlsPanel(QWidget):
         self.speed_slider.setTickInterval(1)
         speed_row.addWidget(self.speed_slider, stretch=1)
         speed_row.addWidget(QLabel("2.0×"))
-        card_layout.addLayout(speed_row)
+        voice_card.content_layout.addLayout(speed_row)
 
         # Preview Button
         self.preview_btn = QPushButton("▶  Preview Voice")
         self.preview_btn.setObjectName("previewButton")
         self.preview_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.preview_btn.clicked.connect(self._start_voice_preview)
-        card_layout.addWidget(self.preview_btn)
+        voice_card.content_layout.addWidget(self.preview_btn)
 
-        core_layout.addWidget(voice_card)
+        c_layout.addWidget(voice_card)
 
-        # Collapsible Advanced Voice Settings Panel
+        # ── 4. ADVANCED VOICE CONTROLS PANEL ────────────────────────────────
         self.adv_panel = AdvancedVoicePanel()
-        core_layout.addWidget(self.adv_panel)
+        c_layout.addWidget(self.adv_panel)
 
-        # Whisper Alignment Card
-        model_card = QFrame()
-        model_card.setObjectName("card")
-        m_layout = QVBoxLayout(model_card)
-        m_layout.setContentsMargins(12, 8, 12, 8)
-        m_layout.setSpacing(6)
-
-        m_title = QLabel("⚡  WHISPER ALIGNMENT MODEL")
-        m_title.setObjectName("sectionLabel")
-        m_layout.addWidget(m_title)
-
+        # ── 5. WHISPER ALIGNMENT CARD ─────────────────────────────────────────
+        model_card = CardWidget(title="WHISPER ALIGNMENT MODEL", icon="⚡")
         self.model_combo = QComboBox()
         for model_id, model_label in WHISPER_MODELS:
             self.model_combo.addItem(model_label, userData=model_id)
         self._set_combo_by_data(self.model_combo, DEFAULT_WHISPER_MODEL)
-        m_layout.addWidget(self.model_combo)
+        model_card.content_layout.addWidget(self.model_combo)
+        c_layout.addWidget(model_card)
 
-        core_layout.addWidget(model_card)
-
-        self.tab_core_scroll = QScrollArea()
-        self.tab_core_scroll.setWidgetResizable(True)
-        self.tab_core_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        self.tab_core_scroll.setWidget(self.tab_core)
-        self.control_tabs.addTab(self.tab_core_scroll, "Voice Studio")
-
-        # ── TAB 2: QUALITY & POST-PROCESSING ──────────────────────────────────
-        self.tab_fx = QWidget()
-        fx_layout = QVBoxLayout(self.tab_fx)
-        fx_layout.setContentsMargins(8, 10, 8, 8)
-        fx_layout.setSpacing(10)
-
-        q_card = QFrame()
-        q_card.setObjectName("card")
-        qc_layout = QVBoxLayout(q_card)
-        qc_layout.setContentsMargins(12, 12, 12, 12)
-        qc_layout.setSpacing(8)
-
-        qc_title = QLabel("🎚  VOICE QUALITY PROFILE")
-        qc_title.setObjectName("sectionLabel")
-        qc_layout.addWidget(qc_title)
-
-        self.quality_combo = QComboBox()
-        for qp in QualityProfile:
-            prof = QUALITY_PROFILES[qp]
-            self.quality_combo.addItem(f"{prof.name} — {prof.description}", userData=qp.value)
-        self.quality_combo.setCurrentIndex(3)  # Studio 48 kHz / -14 LUFS default
-        qc_layout.addWidget(self.quality_combo)
-
-        # Audio FX Filters
-        fx_title = QLabel("✨  HUMANIZATION & AUDIO FX")
-        fx_title.setObjectName("sectionLabel")
-        qc_layout.addWidget(fx_title)
-
-        self.chk_natural_pauses = QCheckBox("Natural Sentence Pauses")
-        self.chk_natural_pauses.setChecked(True)
-        qc_layout.addWidget(self.chk_natural_pauses)
-
-        self.chk_micro_pauses = QCheckBox("Random Micro Pauses")
-        self.chk_micro_pauses.setChecked(True)
-        qc_layout.addWidget(self.chk_micro_pauses)
-
-        self.chk_breathing = QCheckBox("Sentence Breathing Effects")
-        self.chk_breathing.setChecked(True)
-        qc_layout.addWidget(self.chk_breathing)
-
-        self.chk_lufs = QCheckBox("Loudness Normalization (-14 LUFS YouTube)")
-        self.chk_lufs.setChecked(True)
-        qc_layout.addWidget(self.chk_lufs)
-
-        self.chk_limiter = QCheckBox("Brickwall Limiter (-1.0 dB)")
-        self.chk_limiter.setChecked(True)
-        qc_layout.addWidget(self.chk_limiter)
-
-        fx_layout.addWidget(q_card)
-
-        # History Studio Button
-        self.history_btn = QPushButton("📜  Open Generation History Studio…")
-        self.history_btn.clicked.connect(self._open_history_studio)
-        fx_layout.addWidget(self.history_btn)
-
-        fx_layout.addStretch()
-        self.control_tabs.addTab(self.tab_fx, "Quality & History")
-
-        layout.addWidget(self.control_tabs)
-
-        # ── Generate Button ───────────────────────────────────────────────────
+        # ── 6. GENERATE ACTION CARD ───────────────────────────────────────────
+        action_card = CardWidget()
         self.generate_btn = QPushButton("▶  Generate")
         self.generate_btn.setObjectName("generateButton")
+        self.generate_btn.setMinimumHeight(44)
         self.generate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        layout.addWidget(self.generate_btn)
+        action_card.content_layout.addWidget(self.generate_btn)
 
-        # ── Cancel Button ─────────────────────────────────────────────────────
         self.cancel_btn = QPushButton("✕  Cancel Generation")
         self.cancel_btn.setObjectName("cancelButton")
+        self.cancel_btn.setMinimumHeight(38)
         self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_btn.hide()
-        layout.addWidget(self.cancel_btn)
+        action_card.content_layout.addWidget(self.cancel_btn)
 
-        # ── Status Display ────────────────────────────────────────────────────
         self.status_label = QLabel("🟢  Ready")
         self.status_label.setObjectName("statusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.status_label)
+        action_card.content_layout.addWidget(self.status_label)
 
-        # ── Elapsed Time ──────────────────────────────────────────────────────
         self.elapsed_label = QLabel("")
         self.elapsed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.elapsed_label.setStyleSheet("color: #9E9E9E; font-size: 8.5pt; font-family: Consolas, monospace;")
-        layout.addWidget(self.elapsed_label)
+        action_card.content_layout.addWidget(self.elapsed_label)
 
-        # ── Progress Bar ──────────────────────────────────────────────────────
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.setFixedHeight(5)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.hide()
-        layout.addWidget(self.progress_bar)
+        c_layout.addWidget(action_card)
 
-        layout.addStretch()
+        self.scroll_area.setWidget(self.scroll_content)
+        main_layout.addWidget(self.scroll_area)
 
     def _connect_signals(self) -> None:
-        self.voice_combo.currentIndexChanged.connect(self._update_voice_metadata)
-        self.narration_combo.currentIndexChanged.connect(self._on_narration_mode_changed)
         self.speed_slider.valueChanged.connect(self._on_speed_changed)
-        self.generate_btn.clicked.connect(self._on_generate_clicked)
+        self.generate_btn.clicked.connect(self.generation_requested.emit)
+        self.generate_btn.clicked.connect(self.generate_requested.emit)
         self.cancel_btn.clicked.connect(self.cancel_requested.emit)
+        self.provider_combo.currentIndexChanged.connect(self._on_provider_changed)
+        self.narration_combo.currentIndexChanged.connect(self._on_narration_profile_changed)
 
-    def _update_voice_metadata(self) -> None:
-        voice_id = self.voice_combo.currentData() or "af_bella"
-        VoiceFavoritesManager.get_instance().add_recent(voice_id)
+    def _on_provider_changed(self, idx: int) -> None:
+        provider_id = self.provider_combo.itemData(idx)
+        self.adv_panel.update_provider_capabilities(provider_id)
 
-        if voice_id.startswith("bf_") or voice_id.startswith("bm_"):
-            lang_str = "Language: English (UK)"
-        else:
-            lang_str = "Language: English (US)"
-
-        if voice_id.startswith("af_") or voice_id.startswith("bf_"):
-            gender_str = "Female • Natural ★★★★★"
-        else:
-            gender_str = "Male • Natural ★★★★★"
-
-        self.meta_lang_label.setText(f"{lang_str} • {gender_str}")
-
-        is_fav = VoiceFavoritesManager.get_instance().is_favorite(voice_id)
-        self.fav_btn.setText("⭐" if is_fav else "☆")
+    def _on_narration_profile_changed(self, idx: int) -> None:
+        mode_val = self.narration_combo.itemData(idx)
+        prof = NARRATION_MODE_PROFILES.get(mode_val)
+        if prof:
+            if "speed" in prof:
+                self.set_speed(prof["speed"])
+            self.adv_panel.apply_profile_dict(prof)
 
     def _toggle_favorite(self) -> None:
-        voice_id = self.get_voice()
-        is_fav = VoiceFavoritesManager.get_instance().toggle_favorite(voice_id)
-        self.fav_btn.setText("⭐" if is_fav else "☆")
-
-    def _on_narration_mode_changed(self) -> None:
-        mode_val = self.narration_combo.currentData()
-        try:
-            mode = NarrationMode(mode_val)
-            profile = NARRATION_MODE_PROFILES.get(mode, {})
-            if "speed" in profile:
-                spd_val = round(profile["speed"] * 10)
-                self.speed_slider.setValue(spd_val)
-            self.adv_panel.apply_profile_dict(profile)
-        except ValueError:
-            pass
-
-    def _on_speed_changed(self, value: int) -> None:
-        speed = value / 10.0
-        self.speed_label.setText(f"{speed:.1f}×")
-        self.speed_changed.emit(speed)
-
-    def _on_generate_clicked(self) -> None:
-        voice         = self.voice_combo.currentData()
-        speed         = self.speed_slider.value() / 10.0
-        whisper_model = self.model_combo.currentData()
-        self.generate_requested.emit(voice, speed, whisper_model)
+        voice_id = self.selected_voice_id
+        if self.fav_manager.is_favorite(voice_id):
+            self.fav_manager.remove_favorite(voice_id)
+            self.fav_btn.setText("⭐")
+        else:
+            self.fav_manager.add_favorite(voice_id)
+            self.fav_btn.setText("🌟")
 
     def _open_voice_library(self) -> None:
+        from ui.voice_library_dialog import VoiceLibraryDialog
         dlg = VoiceLibraryDialog(self)
         if dlg.exec():
-            selected = dlg.selected_voice_id
-            self.set_voice(selected)
+            selected = dlg.get_selected_voice_id()
+            if selected:
+                self._set_combo_by_data(self.voice_combo, selected)
+
+    def _open_dictionary_studio(self) -> None:
+        from ui.dictionary_dialog import DictionaryStudioDialog
+        dlg = DictionaryStudioDialog(self)
+        dlg.exec()
 
     def _open_voice_cloning(self) -> None:
+        from ui.voice_cloning_dialog import VoiceCloningDialog
         dlg = VoiceCloningDialog(self)
         dlg.exec()
 
-    def _open_dictionary_studio(self) -> None:
-        from ui.dictionary_dialog import DictionaryDialog
-        dlg = DictionaryDialog(self)
-        dlg.exec()
-
     def _open_history_studio(self) -> None:
-        dlg = HistoryDialog(self)
+        from ui.history_dialog import HistoryStudioDialog
+        dlg = HistoryStudioDialog(self)
         dlg.exec()
-
-    # ── Voice Preview Workflow ────────────────────────────────────────────────
 
     def _start_voice_preview(self) -> None:
-        self._player.stop()
-        voice = self.get_voice()
-        speed = self.get_speed()
+        voice_id = self.selected_voice_id
+        speed = self.selected_speed
+        text = "The quick brown fox jumps over the lazy dog."
 
         self.preview_btn.setEnabled(False)
-        self.preview_btn.setText("⏳  Generating Preview…")
+        self.preview_btn.setText("⏳ Synthesizing…")
 
-        self._preview_worker = VoicePreviewWorker(voice, speed, self)
-        self._preview_worker.finished.connect(self._on_preview_generated)
-        self._preview_worker.start()
+        from voice_engine.preview_worker import VoicePreviewWorker
+        self._preview_thread = QThread()
+        self._preview_worker = VoicePreviewWorker(voice_id=voice_id, text=text, speed=speed)
+        self._preview_worker.moveToThread(self._preview_thread)
 
-    def _on_preview_generated(self, success: bool, res_path_or_err: str) -> None:
-        if success and os.path.exists(res_path_or_err):
-            self._current_preview_wav = res_path_or_err
-            self.preview_btn.setText("🔊  Playing…")
-            self._player.setSource(QUrl.fromLocalFile(res_path_or_err))
-            self._player.play()
-        else:
-            self.preview_btn.setText("❌  Preview Failed")
-            QTimer.singleShot(2500, self._reset_preview_button)
+        self._preview_thread.started.connect(self._preview_worker.run)
+        self._preview_worker.finished.connect(self._on_preview_finished)
+        self._preview_worker.error.connect(self._on_preview_error)
 
-    def _on_preview_state_changed(self, state: QMediaPlayer.PlaybackState) -> None:
-        if state == QMediaPlayer.PlaybackState.StoppedState:
-            self._reset_preview_button()
+        self._preview_worker.finished.connect(self._preview_thread.quit)
+        self._preview_worker.finished.connect(self._preview_worker.deleteLater)
+        self._preview_thread.finished.connect(self._preview_thread.deleteLater)
 
-    def _reset_preview_button(self) -> None:
+        self._preview_thread.start()
+
+    def _on_preview_finished(self, audio_path: str) -> None:
+        self.preview_btn.setEnabled(True)
+        self.preview_btn.setText("▶  Preview Voice")
+        if os.path.isfile(audio_path):
+            self._media_player.setSource(QUrl.fromLocalFile(audio_path))
+            self._media_player.play()
+
+    def _on_preview_error(self, err_msg: str) -> None:
         self.preview_btn.setEnabled(True)
         self.preview_btn.setText("▶  Preview Voice")
 
-    # ── Elapsed Timer ─────────────────────────────────────────────────────────
+    def _on_speed_changed(self, raw_value: int) -> None:
+        speed = raw_value / 10.0
+        self.speed_label.setText(f"{speed:.1f}×")
+        self.speed_changed.emit(speed)
 
-    def _tick_elapsed(self) -> None:
-        elapsed  = int(time.monotonic() - self._elapsed_start)
-        m, s     = divmod(elapsed, 60)
-        self.elapsed_label.setText(f"{m:02d}:{s:02d} elapsed")
-
-    def _start_elapsed(self) -> None:
-        self._elapsed_start = time.monotonic()
-        self.elapsed_label.setText("00:00 elapsed")
-        self._elapsed_timer.start()
-
-    def _stop_elapsed(self) -> None:
-        self._elapsed_timer.stop()
-        self.elapsed_label.setText("")
-
-    # ── State Management ─────────────────────────────────────────────────────
-
-    def set_checking_dependencies(self) -> None:
-        self.generate_btn.setEnabled(False)
-        self.generate_btn.setText("▶  Checking Dependencies…")
-        self.set_status("🟡  Checking dependencies…", "working")
-
-    def set_dependency_missing(self, is_missing: bool) -> None:
-        if is_missing:
-            self.generate_btn.setEnabled(False)
-            self.generate_btn.setText("▶  Generate (Dependency Missing)")
-            self.set_status("🔴  Dependency Missing", "error")
-        else:
-            self.generate_btn.setEnabled(True)
-            self.generate_btn.setText("▶  Generate")
-            self.set_status("🟢  Ready", "ready")
-
-    def set_working(self, status_text: str = "Generating…") -> None:
-        self._stage_message = status_text
-        self.generate_btn.hide()
-        self.cancel_btn.show()
-        self.cancel_btn.setEnabled(True)
-        self.progress_bar.setRange(0, 0)
-        self.progress_bar.show()
-        self.voice_combo.setEnabled(False)
-        self.speed_slider.setEnabled(False)
-        self.model_combo.setEnabled(False)
-        self.preview_btn.setEnabled(False)
-
-        icon = "🟡"
-        if "Aligning" in status_text:
-            icon = "🟠"
-        elif "Grouping" in status_text:
-            icon = "🔵"
-
-        self.set_status(f"{icon}  {status_text}", "working")
-        self._start_elapsed()
-
-    def set_ready(self, status_text: str = "Ready") -> None:
-        self._stop_elapsed()
-        self.cancel_btn.hide()
-        self.generate_btn.show()
-        self.generate_btn.setEnabled(True)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(100)
-        self.progress_bar.hide()
-        self.voice_combo.setEnabled(True)
-        self.speed_slider.setEnabled(True)
-        self.model_combo.setEnabled(True)
-        self.preview_btn.setEnabled(True)
-        self.set_status(f"🟢  {status_text}", "ready")
-
-    def set_done(self) -> None:
-        self._stop_elapsed()
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(100)
-        self.cancel_btn.hide()
-        self.generate_btn.show()
-        self.voice_combo.setEnabled(True)
-        self.speed_slider.setEnabled(True)
-        self.model_combo.setEnabled(True)
-        self.preview_btn.setEnabled(True)
-        self.set_status("🟢  Finished ✓", "done")
-
-    def set_status(self, formatted_text: str, state: str = "ready") -> None:
-        colour_map = {
-            "ready":   "#9E9E9E",
-            "working": "#9EFF00",
-            "done":    "#9EFF00",
-            "error":   "#FF4D4D",
-        }
-        colour = colour_map.get(state, "#9E9E9E")
-        self.status_label.setStyleSheet(f"color: {colour}; font-size: 9.5pt; font-weight: 700;")
-        self.status_label.setText(formatted_text)
-
-    # ── Helpers ───────────────────────────────────────────────────────────────
-
-    def get_voice(self) -> str:
+    @property
+    def selected_voice_id(self) -> str:
         return self.voice_combo.currentData() or DEFAULT_VOICE
 
-    def get_speed(self) -> float:
+    @property
+    def selected_whisper_model(self) -> str:
+        return self.model_combo.currentData() or DEFAULT_WHISPER_MODEL
+
+    @property
+    def selected_provider_id(self) -> str:
+        return self.provider_combo.currentData() or "kokoro"
+
+    @property
+    def selected_speed(self) -> float:
         return self.speed_slider.value() / 10.0
 
-    def get_whisper_model(self) -> str:
-        return self.model_combo.currentData() or DEFAULT_WHISPER_MODEL
+    def set_speed(self, speed: float) -> None:
+        clamped = max(0.5, min(2.0, speed))
+        self.speed_slider.setValue(int(clamped * 10))
+
+    def get_advanced_settings(self) -> AdvancedVoiceSettings:
+        settings = self.adv_panel.get_settings()
+        settings.speed = self.selected_speed
+        return settings
+
+    def set_generating(self, is_generating: bool) -> None:
+        self._is_generating = is_generating
+        self.generate_btn.setEnabled(not is_generating)
+        self.cancel_btn.setVisible(is_generating)
+        self.voice_combo.setEnabled(not is_generating)
+        self.model_combo.setEnabled(not is_generating)
+        self.provider_combo.setEnabled(not is_generating)
+        self.narration_combo.setEnabled(not is_generating)
+        self.speed_slider.setEnabled(not is_generating)
+
+    def set_status(self, text: str) -> None:
+        self.status_label.setText(text)
+
+    def set_elapsed(self, seconds: float) -> None:
+        self.elapsed_label.setText(f"Elapsed: {seconds:.1f}s")
 
     def set_voice(self, voice_id: str) -> None:
         self._set_combo_by_data(self.voice_combo, voice_id)
-        self._update_voice_metadata()
-
-    def set_speed(self, speed: float) -> None:
-        self.speed_slider.setValue(round(speed * 10))
 
     def set_whisper_model(self, model_id: str) -> None:
         self._set_combo_by_data(self.model_combo, model_id)
 
-    @staticmethod
-    def _set_combo_by_data(combo: QComboBox, data_value: str) -> None:
-        for i in range(combo.count()):
-            if combo.itemData(i) == data_value:
-                combo.setCurrentIndex(i)
+    def set_checking_dependencies(self) -> None:
+        self.status_label.setText("🔍 Checking Dependencies…")
+        self.generate_btn.setEnabled(False)
+
+    def set_ready(self) -> None:
+        self.status_label.setText("🟢  Ready")
+        self.generate_btn.setEnabled(True)
+
+    def set_dependency_missing(self, missing: bool) -> None:
+        if missing:
+            self.status_label.setText("⚠️ Dependency Issue Detected")
+            self.generate_btn.setEnabled(False)
+        else:
+            self.set_ready()
+
+    def clear_elapsed(self) -> None:
+        self.elapsed_label.setText("")
+
+    def _set_combo_by_data(self, combo: QComboBox, target_data: Any) -> None:
+        for idx in range(combo.count()):
+            if combo.itemData(idx) == target_data:
+                combo.setCurrentIndex(idx)
                 return
